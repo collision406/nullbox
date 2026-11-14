@@ -5,8 +5,9 @@
 #
 #   sudo install -o root -g root -m 0755 deploy/remote-deploy.sh /usr/local/bin/nullbox-deploy
 #
-# It only ever deploys main. The working tree is a deployment checkout; nobody
-# edits it and nobody develops on it.
+# It only ever deploys main, and it keeps the checkout on a local main that
+# tracks origin/main. The working tree is a deployment checkout; nobody edits
+# it and nobody develops on it.
 set -euo pipefail
 
 DIR=${NULLBOX_DIR:-/srv/nullbox}
@@ -21,11 +22,17 @@ if ! flock -n 9; then
   exit 1
 fi
 
-git fetch --depth 1 origin "$BRANCH"
-# Refuse to reset onto a branch that does not contain the deployment config.
-git show FETCH_HEAD:docker-compose.yml >/dev/null
-git reset --hard FETCH_HEAD
+# Track exactly one remote branch, so a later fetch cannot drift elsewhere.
+git remote set-branches origin "$BRANCH"
+git fetch --depth 1 origin
+# Refuse to check out a branch that does not contain the deployment config.
+git show "origin/$BRANCH:docker-compose.yml" >/dev/null
+# Deployment checkout only: discard local changes and put the branch on main.
+git checkout -f -B "$BRANCH" "origin/$BRANCH"
+git branch --set-upstream-to="origin/$BRANCH" "$BRANCH" >/dev/null
+git remote set-head origin --auto >/dev/null 2>&1 || true
 echo "deploying $(git rev-parse --short HEAD) from $BRANCH"
+
 
 # Build first: if the build fails, the running containers are left alone.
 docker compose up -d --build --remove-orphans
