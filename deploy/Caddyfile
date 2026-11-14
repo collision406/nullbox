@@ -10,13 +10,16 @@
 	@compressible not path /mcp /mcp/*
 	encode @compressible zstd gzip
 
+	# Give every request an X-Request-Id unless the client sent one, so a single
+	# request can be followed from Caddy's JSON access log through nullbox-api's
+	# JSON log. Not `header_up ?X-Request-Id` in reverse_proxy: Caddy only allows
+	# the `?` (set if missing) modifier on response headers, and refuses to start.
+	@no_request_id not header X-Request-Id *
+	request_header @no_request_id X-Request-Id {http.request.uuid}
+
 	# The API always lives under /api and keeps its own /api prefix.
-	# Forward or assign X-Request-Id ({http.request.uuid}) so a single request
-	# can be followed from Caddy's JSON access log through nullbox-api's JSON log.
 	handle /api/* {
-		reverse_proxy api:3000 {
-			header_up ?X-Request-Id {http.request.uuid}
-		}
+		reverse_proxy api:3000
 	}
 
 	# MCP for AI agents sits next to /api: /mcp, plus /mcp/messages for old SSE
