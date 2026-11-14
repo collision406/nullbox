@@ -36,6 +36,15 @@ pub struct Config {
     /// Where Stripe's API lives. Not read from the environment, so a key can't be redirected
     /// to another host by configuration; tests point it at a local fake.
     pub stripe_api_base: String,
+    /// `SIGNUP_INVITE_CODE`: when set, creating an account needs this code. Unset = anyone
+    /// may sign up, which means anyone may read the inbox: set it once the demo is over.
+    pub signup_invite_code: Option<String>,
+    /// `RATE_LIMIT_AUTH_PER_MINUTE`: sign-ups and log-ins per client IP per minute, which is
+    /// what stops password guessing. 0 disables.
+    pub rate_limit_auth_per_minute: u32,
+    /// Have I Been Pwned's range API, used to refuse leaked passwords. Not read from the
+    /// environment; tests point it at a local fake.
+    pub hibp_api_base: String,
 }
 
 impl std::fmt::Debug for Config {
@@ -52,6 +61,8 @@ impl std::fmt::Debug for Config {
             .field("trust_proxy", &self.trust_proxy)
             .field("request_timeout_secs", &self.request_timeout_secs)
             .field("stripe_api_key", &self.stripe_api_key.as_ref().map(|_| "<set>"))
+            .field("signup_invite_code", &self.signup_invite_code.as_ref().map(|_| "<set>"))
+            .field("rate_limit_auth_per_minute", &self.rate_limit_auth_per_minute)
             .finish()
     }
 }
@@ -107,6 +118,11 @@ impl Config {
             ));
         }
 
+        let signup_invite_code = opt("SIGNUP_INVITE_CODE");
+        if signup_invite_code.as_ref().is_some_and(|code| code.chars().count() < 8) {
+            return Err(invalid("SIGNUP_INVITE_CODE", "shorter than 8 characters"));
+        }
+
         Ok(Self {
             bind_addr,
             database_url: var("DATABASE_URL", "sqlite://nullbox.db"),
@@ -123,6 +139,9 @@ impl Config {
             request_timeout_secs: u64::from(number("REQUEST_TIMEOUT_SECS", 30)?.max(1)),
             stripe_api_key,
             stripe_api_base: crate::payments::STRIPE_API_BASE.to_owned(),
+            signup_invite_code,
+            rate_limit_auth_per_minute: number("RATE_LIMIT_AUTH_PER_MINUTE", 10)?,
+            hibp_api_base: crate::passwords::HIBP_API_BASE.to_owned(),
         })
     }
 

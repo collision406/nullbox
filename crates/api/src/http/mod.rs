@@ -1,6 +1,7 @@
 //! Routes and the middleware stack.
 
 mod admin;
+mod auth;
 mod checkout;
 mod customer;
 pub mod extract;
@@ -19,7 +20,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use crate::{AppState, Config};
-use extract::{ACTOR_HEADER, TICKET_TOKEN_HEADER};
+use extract::TICKET_TOKEN_HEADER;
 
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -32,6 +33,12 @@ pub fn router(state: AppState) -> Router {
         .route("/tickets/{id}/messages", post(worker::add_message))
         .route("/tickets/{id}/yeet", post(worker::yeet_ticket))
         .route("/stats/backlog", get(worker::backlog_stats))
+        // accounts and sessions
+        .route("/auth/config", get(auth::config))
+        .route("/auth/signup", post(auth::signup))
+        .route("/auth/login", post(auth::login))
+        .route("/auth/logout", post(auth::logout))
+        .route("/me", get(auth::me))
         // payments
         .route("/checkout", post(checkout::create))
         // admin
@@ -83,10 +90,5 @@ fn cors(config: &Config) -> CorsLayer {
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::PATCH])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            header::AUTHORIZATION,
-            HeaderName::from_static(ACTOR_HEADER),
-            HeaderName::from_static(TICKET_TOKEN_HEADER),
-        ])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, HeaderName::from_static(TICKET_TOKEN_HEADER)])
 }

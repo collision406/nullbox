@@ -3,21 +3,26 @@
  *
  * - Base URL from `VITE_API_BASE_URL`, so the same bundle works behind any
  *   origin (Tauri, a CDN, a different domain). No cookies, no same-origin assumptions.
- * - Auth headers are added in `authHeaders()`: that's where a bearer token goes later.
+ * - Worker requests carry `Authorization: Bearer <session token>` from `authHeaders()`.
+ *   A 401 on such a request clears the session, so the UI falls back to the login screen.
  */
-import { getActorName } from "./actor";
+import type { AuthConfig } from "./generated/AuthConfig";
+import type { AuthResponse } from "./generated/AuthResponse";
 import type { BacklogStats } from "./generated/BacklogStats";
 import type { CheckoutResponse } from "./generated/CheckoutResponse";
 import type { CreateTicketRequest } from "./generated/CreateTicketRequest";
 import type { CreateTicketResponse } from "./generated/CreateTicketResponse";
 import type { ErrorBody } from "./generated/ErrorBody";
 import type { ErrorCode } from "./generated/ErrorCode";
+import type { Me } from "./generated/Me";
 import type { Message } from "./generated/Message";
 import type { Ticket } from "./generated/Ticket";
 import type { TicketStatus } from "./generated/TicketStatus";
 import type { TicketThread } from "./generated/TicketThread";
 import type { UpdateTicketRequest } from "./generated/UpdateTicketRequest";
 import type { WorkerMessageRequest } from "./generated/WorkerMessageRequest";
+
+import { clearSession, getSession } from "./session";
 
 export const API_BASE_URL: string = (
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
@@ -36,10 +41,10 @@ export class ApiError extends Error {
   }
 }
 
-/** Worker identity. Today an untrusted name header; tomorrow `Authorization: Bearer …`. */
+/** Worker identity: the session bearer token. Nothing is sent when logged out. */
 function authHeaders(): Record<string, string> {
-  // Percent-encoded so non-ASCII names (e.g. 山田) survive HTTP headers.
-  return { "X-Actor-Name": encodeURIComponent(getActorName()) };
+  const session = getSession();
+  return session ? { Authorization: `Bearer ${session.token}` } : {};
 }
 
 function ticketTokenHeaders(token: string): Record<string, string> {
@@ -49,7 +54,7 @@ function ticketTokenHeaders(token: string): Record<string, string> {
 async function request<T>(
   method: "GET" | "POST" | "PATCH",
   path: string,
-  options: { body?: unknown; headers?: Record<string, string> } = {},
+  options: { body?: unknown; headers?: Record<string, string>; explicitToken?: boolean } = {},
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -66,9 +71,11 @@ async function request<T>(
   }
 
   if (!res.ok) {
+    if (res.status === 401 && "Authorization" in headers && !options.explicitToken) clearSession();
     const error = (await res.json().catch(() => null)) as ErrorBody | null;
     throw new ApiError(error?.code ?? "internal", res.status, error?.message ?? res.statusText);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -86,6 +93,20 @@ export const api = {
 
   // payments: no auth; the server owns the price and the Stripe call
   createCheckout: () => request<CheckoutResponse>("POST", "/checkout"),
+
+  // auth
+  authConfig: () => request<AuthConfig>("GET", "/auth/config"),
+  signup: (body: { username: string; password: string; invite_code?: string }) =>
+    request<AuthResponse>("POST", "/auth/signup", { body }),
+  login: (body: { username: string; password: string }) =>
+    request<AuthResponse>("POST", "/auth/login", { body }),
+  logout: () => request<void>("POST", "/auth/logout", { headers: authHeaders() }),
+  /** Explicit token: used by the SSO landing page before a session exists. */
+  me: (token: string) =>
+    request<Me>("GET", "/me", {
+      headers: { Authorization: `Bearer ${token}` },
+      explicitToken: true,
+    }),
 
   // workers
   listTickets: (status?: TicketStatus) =>

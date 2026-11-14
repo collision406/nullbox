@@ -8,6 +8,7 @@
 //! - storage: [`repo::TicketRepository`]
 //! - settings: [`config::Config`]
 
+pub mod accounts;
 pub mod audit;
 pub mod config;
 pub mod db;
@@ -15,6 +16,7 @@ pub mod dto;
 pub mod error;
 pub mod events;
 pub mod http;
+pub mod passwords;
 pub mod payments;
 pub mod policy;
 pub mod repo;
@@ -32,6 +34,7 @@ pub struct AppState {
     pub tickets: Arc<service::TicketService>,
     pub config: Arc<Config>,
     pub audit: Arc<audit::AuditLog>,
+    pub accounts: Arc<accounts::Accounts>,
     pub limits: Arc<http::guard::RateLimits>,
     /// `None` while `STRIPE_API_KEY` is unset.
     pub payments: Option<Arc<payments::Stripe>>,
@@ -40,6 +43,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(pool: sqlx::SqlitePool, config: Config) -> Self {
         let audit = Arc::new(audit::AuditLog::new(pool.clone()));
+        let accounts = Arc::new(accounts::Accounts::new(pool.clone(), &config.hibp_api_base));
         let repo = Arc::new(repo::SqliteTicketRepository::new(pool));
         let events = Arc::new(audit::AuditEventSink::new(audit.clone()));
         Self {
@@ -51,6 +55,7 @@ impl AppState {
                 .map(|key| Arc::new(payments::Stripe::new(&config.stripe_api_base, key))),
             config: Arc::new(config),
             audit,
+            accounts,
         }
     }
 }

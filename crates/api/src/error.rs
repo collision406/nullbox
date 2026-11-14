@@ -24,6 +24,11 @@ pub enum ErrorCode {
     ImATeapot,
     RateLimited,
     PayloadTooLarge,
+    InvalidCredentials,
+    UsernameTaken,
+    PasswordTooShort,
+    PasswordTooWeak,
+    PasswordLeaked,
 }
 
 /// The one error shape: `{ code, message }`. `message` is English and for developers only.
@@ -53,6 +58,17 @@ pub enum ApiError {
     /// The database is unreachable. It's not DNS. There's no way it's DNS. It was DNS.
     #[error("storage unavailable: {0}")]
     ProbablyDns(String),
+    /// Wrong username or password, or an unknown user: deliberately the same answer.
+    #[error("invalid username or password")]
+    InvalidCredentials,
+    #[error("username already taken")]
+    UsernameTaken,
+    #[error("password too short")]
+    PasswordTooShort,
+    #[error("password too easy to guess")]
+    PasswordTooWeak,
+    #[error("password found in a data breach")]
+    PasswordLeaked,
     /// The payment provider is not configured or didn't answer. The details are logged, never sent.
     #[error("payments unavailable: {0}")]
     PaymentsUnavailable(String),
@@ -84,6 +100,11 @@ impl ApiError {
             Self::WorksOnMyMachine(_) => ErrorCode::Internal,
             Self::Teapot => ErrorCode::ImATeapot,
             Self::RateLimited { .. } => ErrorCode::RateLimited,
+            Self::InvalidCredentials => ErrorCode::InvalidCredentials,
+            Self::UsernameTaken => ErrorCode::UsernameTaken,
+            Self::PasswordTooShort => ErrorCode::PasswordTooShort,
+            Self::PasswordTooWeak => ErrorCode::PasswordTooWeak,
+            Self::PasswordLeaked => ErrorCode::PasswordLeaked,
             Self::PayloadTooLarge => ErrorCode::PayloadTooLarge,
             Self::Timeout => ErrorCode::ServiceUnavailable,
         }
@@ -100,6 +121,9 @@ impl ApiError {
             Self::WorksOnMyMachine(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Teapot => StatusCode::IM_A_TEAPOT,
             Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
+            Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            Self::UsernameTaken => StatusCode::CONFLICT,
+            Self::PasswordTooShort | Self::PasswordTooWeak | Self::PasswordLeaked => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Timeout => StatusCode::SERVICE_UNAVAILABLE,
         }
@@ -125,6 +149,18 @@ impl IntoResponse for ApiError {
             response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from(secs));
         }
         response
+    }
+}
+
+impl From<crate::passwords::PasswordProblem> for ApiError {
+    fn from(problem: crate::passwords::PasswordProblem) -> Self {
+        use crate::passwords::PasswordProblem as Problem;
+        match problem {
+            Problem::TooShort => Self::PasswordTooShort,
+            Problem::TooLong => Self::Validation("password: too long".into()),
+            Problem::TooWeak => Self::PasswordTooWeak,
+            Problem::Leaked => Self::PasswordLeaked,
+        }
     }
 }
 

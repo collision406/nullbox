@@ -68,6 +68,8 @@ pub struct RateLimits {
     /// `POST /api/tickets` and `POST /api/checkout`: public, unauthenticated writes (the
     /// second one costs a call to Stripe), so much stricter.
     pub create_ticket: RateLimiter,
+    /// Sign-up and log-in: what stops password guessing.
+    pub auth: RateLimiter,
 }
 
 impl RateLimits {
@@ -75,6 +77,7 @@ impl RateLimits {
         Self {
             all: RateLimiter::per_minute(config.rate_limit_per_minute),
             create_ticket: RateLimiter::per_minute(config.rate_limit_create_per_minute),
+            auth: RateLimiter::per_minute(config.rate_limit_auth_per_minute),
         }
     }
 }
@@ -94,12 +97,15 @@ pub fn client_ip(headers: &HeaderMap, extensions: &Extensions, trust_proxy: bool
 
 pub async fn rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let ip = client_ip(request.headers(), request.extensions(), state.config.trust_proxy);
-    let creating_ticket =
-        request.method() == Method::POST && matches!(request.uri().path(), "/api/tickets" | "/api/checkout");
+    let posting = request.method() == Method::POST;
+    let path = request.uri().path();
 
     let mut verdict = state.limits.all.check(ip);
-    if verdict.is_ok() && creating_ticket {
+    if verdict.is_ok() && posting && matches!(path, "/api/tickets" | "/api/checkout") {
         verdict = state.limits.create_ticket.check(ip);
+    }
+    if verdict.is_ok() && posting && matches!(path, "/api/auth/signup" | "/api/auth/login") {
+        verdict = state.limits.auth.check(ip);
     }
     match verdict {
         Ok(()) => next.run(request).await,

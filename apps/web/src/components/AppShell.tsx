@@ -1,6 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, useSyncExternalStore } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
-import { getActorName, setActorName, subscribeActor } from "../api/actor";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { api } from "../api/client";
+import { clearSession, getSession, subscribeSession } from "../api/session";
 import { dictionaries, type Locale, useCopy, useLocale } from "../copy/CopyProvider";
 import { useKonami } from "../hooks/useKonami";
 import styles from "./AppShell.module.css";
@@ -34,7 +36,7 @@ export function AppShell() {
           <NavLink to="/inbox">{copy.app.nav.inbox}</NavLink>
         </nav>
         <div className={styles.tools}>
-          {pathname.startsWith("/inbox") && <ActorPicker />}
+          {pathname.startsWith("/inbox") && <WorkerSession />}
           <LanguageSwitcher />
         </div>
       </header>
@@ -67,19 +69,33 @@ function LanguageSwitcher() {
   );
 }
 
-/** Not a login: the worker just tells us who they are (see api/actor.ts). */
-function ActorPicker() {
+/** "You are <name>" plus a log out button, shown in the worker area. */
+function WorkerSession() {
   const copy = useCopy();
-  const name = useSyncExternalStore(subscribeActor, getActorName);
+  const session = useSyncExternalStore(subscribeSession, getSession);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  if (!session) return null;
+
+  async function logout() {
+    try {
+      await api.logout();
+    } catch {
+      // the local session goes away either way
+    }
+    clearSession();
+    queryClient.clear();
+    navigate("/inbox");
+  }
+
   return (
-    <label className={styles.actor} title={copy.worker.actorHint}>
-      <span>{copy.worker.you}</span>
-      <input
-        value={name}
-        placeholder={copy.worker.actorPlaceholder}
-        maxLength={100}
-        onChange={(event) => setActorName(event.target.value)}
-      />
-    </label>
+    <div className={styles.actor}>
+      <span>
+        {copy.worker.you} <strong>{session.name}</strong>
+      </span>
+      <button type="button" onClick={logout}>
+        {copy.auth.logout}
+      </button>
+    </div>
   );
 }
