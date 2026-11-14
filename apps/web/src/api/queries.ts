@@ -49,6 +49,10 @@ export function useCreateTicket() {
   return useMutation({ mutationFn: api.createTicket });
 }
 
+export function useCreateCheckout() {
+  return useMutation({ mutationFn: api.createCheckout });
+}
+
 export function useCustomerReply(id: string, token: string) {
   const queryClient = useQueryClient();
   return useMutation({

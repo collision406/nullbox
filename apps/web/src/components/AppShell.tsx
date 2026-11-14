@@ -30,6 +30,7 @@ export function AppShell() {
           <NavLink to="/" end>
             {copy.app.nav.submit}
           </NavLink>
+          <NavLink to="/buy">{copy.app.nav.feed}</NavLink>
           <NavLink to="/inbox">{copy.app.nav.inbox}</NavLink>
         </nav>
         <div className={styles.tools}>

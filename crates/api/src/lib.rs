@@ -15,6 +15,7 @@ pub mod dto;
 pub mod error;
 pub mod events;
 pub mod http;
+pub mod payments;
 pub mod policy;
 pub mod repo;
 pub mod service;
@@ -32,6 +33,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub audit: Arc<audit::AuditLog>,
     pub limits: Arc<http::guard::RateLimits>,
+    /// `None` while `STRIPE_API_KEY` is unset.
+    pub payments: Option<Arc<payments::Stripe>>,
 }
 
 impl AppState {
@@ -42,6 +45,10 @@ impl AppState {
         Self {
             tickets: Arc::new(service::TicketService::new(repo, events)),
             limits: Arc::new(http::guard::RateLimits::new(&config)),
+            payments: config
+                .stripe_api_key
+                .as_ref()
+                .map(|key| Arc::new(payments::Stripe::new(&config.stripe_api_base, key))),
             config: Arc::new(config),
             audit,
         }

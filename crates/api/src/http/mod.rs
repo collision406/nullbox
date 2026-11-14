@@ -1,6 +1,7 @@
 //! Routes and the middleware stack.
 
 mod admin;
+mod checkout;
 mod customer;
 pub mod extract;
 pub mod guard;
@@ -31,6 +32,8 @@ pub fn router(state: AppState) -> Router {
         .route("/tickets/{id}/messages", post(worker::add_message))
         .route("/tickets/{id}/yeet", post(worker::yeet_ticket))
         .route("/stats/backlog", get(worker::backlog_stats))
+        // payments
+        .route("/checkout", post(checkout::create))
         // admin
         .route("/admin/export", get(admin::export))
         .route("/admin/audit", get(admin::audit))

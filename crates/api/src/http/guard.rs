@@ -65,7 +65,8 @@ impl RateLimiter {
 pub struct RateLimits {
     /// Every request.
     pub all: RateLimiter,
-    /// `POST /api/tickets`: public and unauthenticated, so much stricter.
+    /// `POST /api/tickets` and `POST /api/checkout`: public, unauthenticated writes (the
+    /// second one costs a call to Stripe), so much stricter.
     pub create_ticket: RateLimiter,
 }
 
@@ -93,7 +94,8 @@ pub fn client_ip(headers: &HeaderMap, extensions: &Extensions, trust_proxy: bool
 
 pub async fn rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let ip = client_ip(request.headers(), request.extensions(), state.config.trust_proxy);
-    let creating_ticket = request.method() == Method::POST && request.uri().path() == "/api/tickets";
+    let creating_ticket =
+        request.method() == Method::POST && matches!(request.uri().path(), "/api/tickets" | "/api/checkout");
 
     let mut verdict = state.limits.all.check(ip);
     if verdict.is_ok() && creating_ticket {
