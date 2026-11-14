@@ -3,11 +3,16 @@
 mod admin;
 mod customer;
 pub mod extract;
+pub mod guard;
 mod utility;
 mod worker;
 
+use std::time::Duration;
+
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderName, HeaderValue, Method, header};
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::routing::{get, post};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -28,21 +33,32 @@ pub fn router(state: AppState) -> Router {
         .route("/stats/backlog", get(worker::backlog_stats))
         // admin
         .route("/admin/export", get(admin::export))
+        .route("/admin/audit", get(admin::audit))
         // utility
         .route("/healthz", get(utility::healthz))
         .route("/teapot", get(utility::teapot));
 
-    let config = state.config.clone();
-    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &config).with_state(state)
+    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &state).with_state(state)
 }
 
-/// The one place for cross-cutting layers. Tracing exporters, rate limiting,
-/// auth middleware and CORS hardening go here. Layers run bottom to top.
+/// The one place for cross-cutting layers. Tracing exporters and auth middleware
+/// go here. Layers run bottom to top: the last one added sees the request first.
+///
+/// So a request passes: security headers (on every response, errors and CORS
+/// preflights included), CORS (before the limits, so a browser can read a 429),
+/// tracing, the rate limit, the timeout, and finally the body size limit.
 ///
 /// Routes outside `/api` (an MCP server at `/mcp`, say) go next to the `nest` in
 /// `router`, so they pass through here too.
-pub fn middleware<S: Clone + Send + Sync + 'static>(router: Router<S>, config: &Config) -> Router<S> {
-    router.layer(cors(config)).layer(TraceLayer::new_for_http())
+pub fn middleware(router: Router<AppState>, state: &AppState) -> Router<AppState> {
+    let timeout = Duration::from_secs(state.config.request_timeout_secs);
+    router
+        .layer(DefaultBodyLimit::max(guard::MAX_BODY_BYTES))
+        .layer(from_fn(move |request, next| guard::timeout(timeout, request, next)))
+        .layer(from_fn_with_state(state.clone(), guard::rate_limit))
+        .layer(TraceLayer::new_for_http())
+        .layer(cors(&state.config))
+        .layer(from_fn(guard::security_headers))
 }
 
 /// CORS for the web app on another origin (Vite in dev, Tauri). `Authorization` is

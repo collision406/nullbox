@@ -3,3 +3,7 @@ packages:
 
 # Only install package versions that have been public for 14 days (in minutes).
 minimumReleaseAge: 20160
+
+# Security: undici <8.12.2 has known advisories (pulled in by jsdom, test-only).
+overrides:
+  undici: ">=8.12.2"

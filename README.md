@@ -87,6 +87,7 @@ stable and shared with TypeScript; `message` is English and for developers only.
 | POST | `/tickets/{id}/yeet` | close: sets status `resolved` ("Yeeted") |
 | GET | `/stats/backlog` | `{ open_count, beast_mood, oldest_open_age_secs }` |
 | GET | `/admin/export` | every ticket, for the CEO's spreadsheet; header `X-Admin-Token` |
+| GET | `/admin/audit?limit=` | the audit log, newest first; header `X-Admin-Token` |
 | GET | `/healthz` | liveness |
 | GET | `/teapot` | 418, as specified by RFC 2324 |
 
@@ -95,7 +96,25 @@ Worker endpoints are **unprotected**: `X-Actor-Name` is whatever the client says
 ## Configuration
 
 API, from env vars or `.env` (see `.env.example` and `crates/api/src/config.rs`):
-`BIND_ADDR`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_WEB_URL`, `ADMIN_TOKEN`, `RUST_LOG`.
+`BIND_ADDR`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_WEB_URL`, `ADMIN_TOKEN`, `RATE_LIMIT_PER_MINUTE`,
+`RATE_LIMIT_CREATE_PER_MINUTE`, `TRUST_PROXY`, `REQUEST_TIMEOUT_SECS`, `RUST_LOG`.
+
+## Security
+
+- **Admin token**: no default. Without `ADMIN_TOKEN` (32+ characters) the admin endpoints refuse everyone.
+  It is compared in constant time, and a token that was once leaked is refused at startup.
+- **Customer links**: a secret link opens only the ticket it was issued for.
+- **Rate limits** per client IP: 300 requests a minute, 10 new tickets a minute. Over the limit: `429`
+  with `Retry-After`. Behind a reverse proxy set `TRUST_PROXY=true`, or every client shares the proxy's IP.
+- **Limits**: request bodies up to 128 kB (`413` above), requests up to 30 seconds (`503` above).
+- **Headers** on every response: `Content-Security-Policy`, `Strict-Transport-Security`,
+  `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cache-Control: no-store`.
+  These cover the API; the web server that serves `apps/web/dist` has to set its own.
+- **Audit log**: every ticket change, every export and every refused admin request is stored in
+  `audit_log` and readable at `/api/admin/audit`.
+
+One test per item lives in `crates/api/tests/security.rs`. Still open: worker endpoints trust
+`X-Actor-Name` until a login replaces the `Actor` extractor.
 
 Web, at build time: `VITE_API_BASE_URL`, the origin of the API without `/api`. Unset, the bundle calls
 `http://localhost:3000`, which is only right on your laptop. For a deployment, set it to your site's
@@ -107,8 +126,8 @@ address, or to an empty value when one web server serves both the web app and `/
 |---|---|
 | Login: passwords, SSO, sessions | `Actor` extractor in `crates/api/src/http/extract.rs` (it gets the `AppState`); `authHeaders()` in `apps/web/src/api/client.ts`; for cookies across origins, see `cors()` in `crates/api/src/http/mod.rs` |
 | Roles / permissions | `policy::can` in `crates/api/src/policy.rs` (always `true` today) |
-| Audit log, webhooks, email, metrics | `EventSink` in `crates/api/src/events.rs` (only logs today); refused requests in the `Actor` extractor |
-| Rate limiting, tracing exporters, CORS hardening | `middleware()` in `crates/api/src/http/mod.rs` |
+| Webhooks, email, metrics | `EventSink` in `crates/api/src/events.rs`; the audit log in `crates/api/src/audit.rs` is one implementation |
+| Tracing exporters, more limits | `middleware()` in `crates/api/src/http/mod.rs`; the guards live in `crates/api/src/http/guard.rs` |
 | Postgres, multi-tenancy, backups | `TicketRepository` in `crates/api/src/repo/mod.rs` |
 | OpenTelemetry | everything logs through `tracing`; add a layer in `main.rs` |
 | Payments | a new route next to the others in `crates/api/src/http/mod.rs`; a page in `apps/web/src/router.tsx`; keys in `Config` |

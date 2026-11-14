@@ -1,11 +1,13 @@
 //! Request extractors. `Actor` is the auth seam.
 
 use axum::Json;
-use axum::extract::{FromRequest, FromRequestParts, Path, Query};
+use axum::extract::{FromRequest, FromRequestParts, OriginalUri, Path, Query};
 use axum::http::request::Parts;
 use percent_encoding::percent_decode_str;
 
-use crate::{ApiError, AppState};
+use super::guard::client_ip;
+use crate::audit::AuditEntry;
+use crate::{ApiError, AppState, token};
 
 pub const ACTOR_HEADER: &str = "x-actor-name";
 pub const ADMIN_TOKEN_HEADER: &str = "x-admin-token";
@@ -35,6 +37,52 @@ impl FromRequestParts<AppState> for Actor {
             return Err(ApiError::MissingActor);
         }
         Ok(Actor { name: name.to_owned() })
+    }
+}
+
+/// Proof that the request carries the admin token (`X-Admin-Token`). Admin handlers
+/// take this as an argument, so a new admin route can't forget the check.
+///
+/// With no `ADMIN_TOKEN` configured nobody gets in. Every refusal is written to the
+/// audit log, with the caller's address but never the token that was tried.
+#[derive(Debug, Clone, Copy)]
+pub struct Admin;
+
+impl FromRequestParts<AppState> for Admin {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let presented = parts.headers.get(ADMIN_TOKEN_HEADER).and_then(|value| value.to_str().ok());
+        let granted = match (presented, state.config.admin_token.as_deref()) {
+            (Some(presented), Some(expected)) => token::secrets_match(presented, expected),
+            _ => false,
+        };
+        if granted {
+            return Ok(Admin);
+        }
+        let reason = match (presented, &state.config.admin_token) {
+            (_, None) => "no admin token is configured",
+            (None, _) => "no token presented",
+            _ => "wrong token",
+        };
+        let ip = client_ip(&parts.headers, &parts.extensions, state.config.trust_proxy);
+        // Inside the `/api` nest the URI has lost its prefix; log the path the client asked for.
+        let path = parts.extensions.get::<OriginalUri>().map_or(parts.uri.path(), |original| original.path());
+        let entry =
+            AuditEntry::new("admin_access_denied").client_ip(ip).detail(format!("{} {path}: {reason}", parts.method));
+        state.audit.record(entry).await;
+        Err(ApiError::Forbidden)
+    }
+}
+
+/// The address the request came from, for audit entries. See [`client_ip`].
+pub struct ClientIp(pub std::net::IpAddr);
+
+impl FromRequestParts<AppState> for ClientIp {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        Ok(ClientIp(client_ip(&parts.headers, &parts.extensions, state.config.trust_proxy)))
     }
 }
 
