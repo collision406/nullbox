@@ -6,6 +6,7 @@ mod checkout;
 mod customer;
 pub mod extract;
 pub mod guard;
+mod mcp;
 mod utility;
 mod worker;
 
@@ -48,7 +49,9 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(utility::healthz))
         .route("/teapot", get(utility::teapot));
 
-    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &state).with_state(state)
+    // MCP for AI agents lives next to /api, not under it, and passes the same middleware.
+    let app = Router::new().nest("/api", api).merge(mcp::router(state.clone())).fallback(utility::not_found);
+    middleware(app, &state).with_state(state)
 }
 
 /// The one place for cross-cutting layers. Tracing exporters and auth middleware

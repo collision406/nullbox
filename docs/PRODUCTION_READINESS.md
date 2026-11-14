@@ -113,12 +113,15 @@ Positions: **done** / **in progress** / **next** / **backlog**.
 - **Accept when:** test-mode purchase upgrades a ticket/account, a replayed
   webhook is a no-op, and no key is in the bundle.
 
-## 8. AI — 3 pts — backlog
+## 8. AI — 3 pts — in progress
 
-- [ ] MCP server at `/mcp` exposing ticket tools (2 pts).
-- [ ] An agent works a ticket end to end (1 pt).
-- **Where:** a service next to the `/api` nest in `router()`; tools call
-  `TicketService` like the worker handlers do.
+- [x] MCP server at `/mcp` exposing ticket tools (2 pts): both transports
+  (Streamable HTTP and the 2024-11-05 SSE one), bearer auth, Caddy route.
+- [x] An agent works a ticket end to end (1 pt): read, triage, note, reply,
+  resolve, all audited as `agent:<client name>` (`crates/api/tests/mcp.rs`).
+- [ ] Set `MCP_TOKEN` on the server and check `/mcp` from outside with a real client.
+- **Where:** `crates/api/src/http/mcp/`; tools call `TicketService` like the
+  worker handlers do. How to connect: `docs/MCP.md`.
 - **Accept when:** an MCP client lists tools, reads a ticket, posts a reply, and
   the action appears in the audit log under the agent's identity.
 
