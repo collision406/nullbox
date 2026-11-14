@@ -39,8 +39,10 @@ impl Config {
                 .filter(|origin| !origin.is_empty())
                 .collect(),
             public_web_url: var("PUBLIC_WEB_URL", "http://localhost:5173").trim_end_matches('/').to_owned(),
-            // TODO(kenji): this default is only here so the export keeps working on the demo box. Remove before launch.
-            admin_token: var("ADMIN_TOKEN", "REDACTED-rotated"),
+            // No default on purpose: an unset ADMIN_TOKEN disables the export
+            // endpoint instead of falling back to a value that has been public
+            // since the demo box.
+            admin_token: var("ADMIN_TOKEN", ""),
         })
     }
 }
