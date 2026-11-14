@@ -14,7 +14,7 @@ Positions: **done** / **next** / **backlog**.
 - [x] Runbook for first deploy, updates and rollback (`deploy/README.md`).
 - [x] Site reachable at `https://team-09.fasthacks.cloud/` with a valid certificate.
 - [x] `curl -fsS https://team-09.fasthacks.cloud/api/healthz` returns `{"status":"ok"}`.
-- [ ] The event's Deploy check has run and gone green.
+- [x] The event's Deploy check has run and gone green (2026-11-14T05:51Z).
 - **Accept when:** the event's Deploy check goes green and the page loads a ticket
   end to end.
 - **Verified on 2026-11-14:** Let's Encrypt certificate, HTTP->HTTPS redirect,
