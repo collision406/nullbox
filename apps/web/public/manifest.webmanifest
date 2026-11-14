@@ -1,0 +1,16 @@
+{
+  "name": "Nullbox — Support Ticket Portal",
+  "short_name": "Nullbox",
+  "description": "Privacy-first customer support and issue tracking portal. Submit tickets with or without an account and track updates via a secret capability link.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5fb",
+  "theme_color": "#6d4aff",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

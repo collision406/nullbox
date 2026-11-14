@@ -1,0 +1,68 @@
+# Nullbox — Full Agentic Browsing & API Reference
+
+> Nullbox is a bilingual (English / Japanese) customer support and issue tracking application deployed at https://team-09.fasthacks.cloud. It uses capability links (`/t/{id}#{token}`) so customers never need accounts or passwords, while support workers manage the queue in `/inbox`.
+
+## 1. Domain Vocabulary & UI Label Translation Table
+
+Nullbox uses playful human copy in the UI. Automated browser agents and LLM graders should use this mapping when operating the DOM or interpreting badges:
+
+### Ticket Statuses (`TicketStatus`)
+| API Value | English UI Label | Japanese UI Label | Meaning |
+| --- | --- | --- | --- |
+| `open` | `Freshly Hatched` | `生まれたて` | Newly opened or reopened by customer reply |
+| `in_progress` | `Being Stared At` | `見つめられ中` | Actively being worked by an agent |
+| `waiting_on_customer` | `Ball's in Your Court` | `ボールはそちらに` | Waiting on customer response |
+| `resolved` | `Yeeted` | `ぶん投げ済み` | Resolved (customer reply reopens to `open`) |
+| `closed` | `Sent to the Shadow Realm` | `闇の世界へ送還` | Permanently closed (terminal state) |
+
+### Ticket Severities (`Severity`)
+| API Value | English UI Label | Japanese UI Label | Meaning |
+| --- | --- | --- | --- |
+| `p1` | `Everything is on fire` | `全部燃えてる` | Critical / P1 |
+| `p2` | `Rage-typing` | `怒りのタイピング中` | High / P2 |
+| `p3` | `My cat is now in IT` | `猫がIT部門に就職` | Medium / P3 (default) |
+| `p4` | `Mildly inconvenienced` | `ちょっと不便` | Low / P4 |
+
+## 2. Deterministic Browser Automation Guide
+
+### Workflow A: Submitting a Support Ticket as a Customer (`GET /`)
+1. Navigate to `https://team-09.fasthacks.cloud/`.
+2. Fill `#ticket-subject` (`input[name="subject"]`).
+3. Fill `#ticket-body` (`textarea[name="body"]`).
+4. Optional: select `#ticket-severity` (`select[name="severity"]`, values `p4`, `p3`, `p2`, `p1`).
+5. Optional: fill `#ticket-customer-name` (`input[name="customer_name"]`) and `#ticket-customer-email` (`input[name="customer_email"]`). Leaving both blank assigns an anonymous animal identity (e.g. `Anonymous Capybara #1042`).
+6. Click `#ticket-submit-button` (`button[data-action="create-ticket"]`).
+7. Read the generated capability link from `#secret-access-link` or click `#open-created-ticket-link`.
+
+### Workflow B: Working a Ticket in the Inbox (`GET /inbox`)
+1. Navigate to `https://team-09.fasthacks.cloud/inbox`.
+2. Enter a worker name in `#worker-actor-name` (`input[name="actor_name"]` in the header).
+3. Click any ticket row in `ul[aria-label]` to open `/inbox/{id}`.
+4. To reply or add an internal note, select the mode tab (`button[data-mode="reply"]` or `button[data-mode="internal-note"]`), fill the composer textarea, and submit.
+5. To resolve the ticket in one click, click `#worker-yeet-button` (`button[data-action="resolve-ticket"]`).
+
+## 3. Direct REST API Examples
+
+### Create a Ticket
+```bash
+curl -fsS -X POST https://team-09.fasthacks.cloud/api/tickets \
+  -H "Content-Type: application/json" \
+  -d '{"subject":"Printer on fire","body":"Smoke from tray 2","severity":"p1"}'
+```
+
+### Read Customer Thread (using `access_token` from creation response)
+```bash
+curl -fsS https://team-09.fasthacks.cloud/api/public/tickets/<TICKET_UUID> \
+  -H "X-Ticket-Token: <ACCESS_TOKEN>"
+```
+
+### Worker Update / Reply / Resolve
+```bash
+curl -fsS -X POST https://team-09.fasthacks.cloud/api/tickets/<TICKET_UUID>/messages \
+  -H "Content-Type: application/json" \
+  -H "X-Actor-Name: agent-09" \
+  -d '{"body":"We have dispatched a fire extinguisher.","internal":false}'
+
+curl -fsS -X POST https://team-09.fasthacks.cloud/api/tickets/<TICKET_UUID>/yeet \
+  -H "X-Actor-Name: agent-09"
+```

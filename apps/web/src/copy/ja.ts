@@ -140,6 +140,37 @@ const ja = {
     oldest: (age: string) => `最古: ${age}`,
   },
 
+  seo: {
+    mainNav: "メインナビゲーション",
+    skipToMain: "メインコンテンツへスキップ",
+    ticketActions: "チケット操作",
+    homeTitle: "Nullbox（ヌルボックス）— サポートチケット窓口 | 問題を報告",
+    homeDescription:
+      "Nullboxはプライバシー重視のカスタマーサポート・課題管理ポータルです。アカウント不要で問題を報告し、専用シークレットリンクで返信を確認できます。",
+    createdTitle: (n: number) => `チケット #${n} 受付完了 — Nullbox`,
+    createdDescription:
+      "サポートチケットを受け付けました。専用の秘密リンクをブックマークしてやりとりを確認してください。",
+    customerTicketTitle: (n?: number) =>
+      n !== undefined ? `チケット #${n} — Nullbox サポート` : "サポートチケット — Nullbox",
+    customerTicketDescription: "専用シークレットリンクでアクセスする非公開サポートスレッドです。",
+    buyTitle: "バックログビーストにエサをあげよう — Nullbox",
+    buyDescription: "Stripe決済（500円）でNullboxのバックログビーストにおやつをあげられます。",
+    thanksTitle: "ごちそうさまでした！ — Nullbox",
+    thanksDescription: "バックログビーストにおやつが届きました。",
+    loginTitle: "担当者ログイン — Nullbox 受信箱",
+    loginDescription:
+      "Nullboxの担当者用受信箱にアクセスするにはログインまたは新規登録してください。",
+    ssoTitle: "シングルサインオン確認中 — Nullbox",
+    ssoDescription: "シングルサインオンのセッションを確認しています。",
+    inboxTitle: "対応者の受信箱・バックログの獣 — Nullbox",
+    inboxDescription: "チケットの振り分け、返信、社内メモ、解決を行う対応者専用の受信箱です。",
+    workerTicketTitle: (n: number, subject: string) =>
+      `チケット #${n}: ${subject} — 対応者の受信箱 | Nullbox`,
+    workerTicketDescription: "ステータス変更、担当者割り当て、返信・社内メモを行う管理画面です。",
+    notFoundTitle: "404 ページが見つかりません — Nullbox",
+    notFoundDescription: "お探しのページはNullboxサポートポータル内に見つかりませんでした。",
+  },
+
   zero: {
     celebration: "受信箱ゼロ達成！",
     void: "無料の虚無をお楽しみください。",

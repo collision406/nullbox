@@ -8,6 +8,7 @@ import { Beast } from "../../components/Beast/Beast";
 import { Celebration } from "../../components/Celebration";
 import { ErrorMessage, Loading, Toast } from "../../components/Feedback";
 import { useCopy, useFormat } from "../../copy/CopyProvider";
+import { usePageMeta } from "../../seo/usePageMeta";
 import styles from "../pages.module.css";
 
 const STATUSES: TicketStatus[] = [
@@ -27,18 +28,28 @@ export function InboxPage() {
   const inbox = useInbox(status);
   const stats = useBacklogStats();
 
+  usePageMeta({
+    title: copy.seo.inboxTitle,
+    description: copy.seo.inboxDescription,
+    canonicalPath: "/inbox",
+    robots: "noindex, nofollow",
+    referrer: "no-referrer",
+  });
+
   const tickets = (inbox.data ?? []).filter((ticket) =>
     ticket.subject.toLowerCase().includes(search.trim().toLowerCase()),
   );
 
   return (
-    <section className={styles.inboxLayout}>
+    <section className={styles.inboxLayout} aria-labelledby="worker-inbox-heading">
       <div className={styles.page}>
-        <h1>{copy.worker.inboxTitle}</h1>
+        <h1 id="worker-inbox-heading">{copy.worker.inboxTitle}</h1>
         <div className={styles.filters}>
-          <label>
+          <label htmlFor="inbox-filter-status">
             {copy.worker.filter}
             <select
+              id="inbox-filter-status"
+              name="status"
               value={status ?? ""}
               onChange={(event) =>
                 setStatus((event.target.value || undefined) as TicketStatus | undefined)
@@ -52,9 +63,11 @@ export function InboxPage() {
               ))}
             </select>
           </label>
-          <label>
+          <label htmlFor="inbox-search-subject">
             {copy.worker.search}
             <input
+              id="inbox-search-subject"
+              name="search"
               type="search"
               value={search}
               placeholder={copy.worker.searchPlaceholder}
@@ -79,7 +92,7 @@ export function InboxPage() {
         {inbox.data && inbox.data.length > 0 && tickets.length === 0 && (
           <p className={styles.muted}>{copy.worker.noMatches}</p>
         )}
-        <ul className={styles.list}>
+        <ul className={styles.list} aria-label={copy.worker.inboxTitle}>
           {tickets.map((ticket) => {
             const aging =
               ticket.status === "resolved" || ticket.status === "closed"

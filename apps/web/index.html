@@ -3,11 +3,174 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nullbox — Support Ticket Portal | Report a Problem</title>
+    <meta
+      name="description"
+      content="Nullbox is a privacy-first customer support and issue tracking portal. Report a problem with or without an account and track updates with a secret capability link."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="#6d4aff" />
+    <meta name="application-name" content="Nullbox" />
+    <link rel="canonical" href="https://team-09.fasthacks.cloud/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Nullbox</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <link
+      rel="service-desc"
+      type="application/vnd.oai.openapi+json"
+      href="/openapi.json"
+      title="Nullbox OpenAPI 3.1 Specification"
+    />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM and Agent Guide" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Nullbox" />
+    <meta property="og:title" content="Nullbox — Support Ticket Portal | Report a Problem" />
+    <meta
+      property="og:description"
+      content="Nullbox is a privacy-first customer support and issue tracking portal. Report a problem with or without an account and track updates with a secret capability link."
+    />
+    <meta property="og:url" content="https://team-09.fasthacks.cloud/" />
+    <meta property="og:image" content="https://team-09.fasthacks.cloud/og-image.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Nullbox — Support, but make it void." />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nullbox — Support Ticket Portal | Report a Problem" />
+    <meta
+      name="twitter:description"
+      content="Nullbox is a privacy-first customer support and issue tracking portal. Report a problem with or without an account and track updates with a secret capability link."
+    />
+    <meta name="twitter:image" content="https://team-09.fasthacks.cloud/og-image.svg" />
+
+    <!-- Structured Data (Schema.org WebApplication + PotentialAction) -->
+    <script id="nullbox-jsonld" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://team-09.fasthacks.cloud/#website",
+            "name": "Nullbox",
+            "alternateName": "ヌルボックス",
+            "url": "https://team-09.fasthacks.cloud/",
+            "inLanguage": ["en", "ja"],
+            "description": "Privacy-first customer support and issue tracking portal."
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://team-09.fasthacks.cloud/#app",
+            "name": "Nullbox",
+            "url": "https://team-09.fasthacks.cloud/",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "All",
+            "browserRequirements": "Requires JavaScript for interactive SPA features; REST API available at /api/tickets.",
+            "description": "Nullbox is a privacy-first customer support and issue tracking portal. Customers submit tickets with or without an account and track responses via a secret capability link.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "potentialAction": [
+              {
+                "@type": "CreateAction",
+                "name": "Submit a Support Ticket",
+                "description": "Report a problem to Nullbox support via the web form at / or POST /api/tickets.",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://team-09.fasthacks.cloud/api/tickets",
+                  "httpMethod": "POST",
+                  "encodingType": "application/json",
+                  "contentType": "application/json",
+                  "actionApplication": {
+                    "@id": "https://team-09.fasthacks.cloud/#app"
+                  }
+                },
+                "result": {
+                  "@type": "Thing",
+                  "name": "Support Ticket Capability Link"
+                },
+                "object": {
+                  "@type": "DigitalDocument",
+                  "name": "CreateTicketRequest"
+                },
+                "query-input": [
+                  {
+                    "@type": "PropertyValueSpecification",
+                    "valueName": "subject",
+                    "description": "Short summary of the problem (1-200 characters)",
+                    "valueRequired": true,
+                    "valueMaxLength": 200
+                  },
+                  {
+                    "@type": "PropertyValueSpecification",
+                    "valueName": "body",
+                    "description": "Detailed description, steps to reproduce, and error messages (1-10000 characters)",
+                    "valueRequired": true,
+                    "valueMaxLength": 10000
+                  },
+                  {
+                    "@type": "PropertyValueSpecification",
+                    "valueName": "severity",
+                    "description": "Ticket severity level: p1 (critical), p2 (high), p3 (medium, default), or p4 (low)",
+                    "valueRequired": true,
+                    "defaultValue": "p3"
+                  },
+                  {
+                    "@type": "PropertyValueSpecification",
+                    "valueName": "customer_name",
+                    "description": "Optional customer display name (omit to receive an anonymous animal alias)",
+                    "valueRequired": false,
+                    "valueMaxLength": 100
+                  },
+                  {
+                    "@type": "PropertyValueSpecification",
+                    "valueName": "customer_email",
+                    "description": "Optional customer email address",
+                    "valueRequired": false,
+                    "valueMaxLength": 254
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <header>
+        <strong>Nullbox</strong> — Support, but make it void.
+        <nav aria-label="Primary navigation">
+          <a href="/">Report a problem</a> |
+          <a href="/inbox">Worker inbox</a> |
+          <a href="/llms.txt">LLM &amp; Agent Guide</a> |
+          <a href="/openapi.json">OpenAPI Specification</a>
+        </nav>
+      </header>
+      <main>
+        <h1>Nullbox — Customer Support &amp; Issue Tracking Portal</h1>
+        <p>
+          Tell us everything. Submit a support ticket with or without an account and track updates
+          using your one-time secret capability link.
+        </p>
+        <p>
+          Automated agents and non-JavaScript clients can interact directly with the REST API at
+          <code>POST /api/tickets</code> as documented in <a href="/llms.txt">/llms.txt</a> and
+          <a href="/openapi.json">/openapi.json</a>.
+        </p>
+      </main>
+      <footer>No tickets were harmed in the making of this inbox.</footer>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

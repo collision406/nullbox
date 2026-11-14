@@ -9,6 +9,7 @@ import { Composer } from "../../components/Composer";
 import { ErrorMessage, Loading } from "../../components/Feedback";
 import { Thread } from "../../components/Thread";
 import { useCopy } from "../../copy/CopyProvider";
+import { usePageMeta } from "../../seo/usePageMeta";
 import styles from "../pages.module.css";
 
 const STATUSES: TicketStatus[] = [
@@ -32,6 +33,16 @@ export function WorkerTicketPage() {
   const [internal, setInternal] = useState(false);
   const [yeeting, setYeeting] = useState(false);
 
+  usePageMeta({
+    title: thread.data
+      ? copy.seo.workerTicketTitle(thread.data.ticket.number, thread.data.ticket.subject)
+      : copy.seo.inboxTitle,
+    description: copy.seo.workerTicketDescription,
+    canonicalPath: `/inbox/${id}`,
+    robots: "noindex, nofollow",
+    referrer: "no-referrer",
+  });
+
   if (thread.isPending) return <Loading />;
   if (thread.error) return <ErrorMessage error={thread.error} />;
   const { ticket, messages } = thread.data;
@@ -48,13 +59,16 @@ export function WorkerTicketPage() {
   const mutationError = addMessage.error ?? update.error ?? yeet.error;
 
   return (
-    <section className={`${styles.page} ${yeeting ? styles.yeeting : ""}`}>
+    <section
+      className={`${styles.page} ${yeeting ? styles.yeeting : ""}`}
+      aria-labelledby="worker-ticket-heading"
+    >
       <Link to="/inbox">← {copy.worker.back}</Link>
       <div className={styles.titleRow}>
         <span className={styles.muted}>
           <TicketNumber number={ticket.number} />
         </span>
-        <h1>{ticket.subject}</h1>
+        <h1 id="worker-ticket-heading">{ticket.subject}</h1>
         <StatusBadge status={ticket.status} />
         <SeverityBadge severity={ticket.severity} />
       </div>
@@ -65,10 +79,20 @@ export function WorkerTicketPage() {
           <Thread ticket={ticket} messages={messages} />
           <div className={styles.card}>
             <div className={styles.tabs}>
-              <button type="button" aria-pressed={!internal} onClick={() => setInternal(false)}>
+              <button
+                type="button"
+                data-mode="reply"
+                aria-pressed={!internal}
+                onClick={() => setInternal(false)}
+              >
                 {copy.worker.reply}
               </button>
-              <button type="button" aria-pressed={internal} onClick={() => setInternal(true)}>
+              <button
+                type="button"
+                data-mode="internal-note"
+                aria-pressed={internal}
+                onClick={() => setInternal(true)}
+              >
                 {copy.worker.internalNote}
               </button>
             </div>
@@ -82,14 +106,16 @@ export function WorkerTicketPage() {
           </div>
         </div>
 
-        <aside className={`${styles.card} ${styles.side}`}>
+        <aside className={`${styles.card} ${styles.side}`} aria-label={copy.seo.ticketActions}>
           <p className={styles.muted}>
             {copy.ticket.customer}: <CustomerName ticket={ticket} />
             {ticket.customer_email && <> ({ticket.customer_email})</>}
           </p>
-          <label className={styles.field}>
+          <label htmlFor="worker-ticket-status" className={styles.field}>
             {copy.ticket.status}
             <select
+              id="worker-ticket-status"
+              name="status"
               value={ticket.status}
               onChange={(event) => update.mutate({ status: event.target.value as TicketStatus })}
             >
@@ -100,9 +126,11 @@ export function WorkerTicketPage() {
               ))}
             </select>
           </label>
-          <label className={styles.field}>
+          <label htmlFor="worker-ticket-severity" className={styles.field}>
             {copy.ticket.severity}
             <select
+              id="worker-ticket-severity"
+              name="severity"
               value={ticket.severity}
               onChange={(event) => update.mutate({ severity: event.target.value as Severity })}
             >
@@ -120,11 +148,14 @@ export function WorkerTicketPage() {
           />
           {canYeet && (
             <button
+              id="worker-yeet-button"
               type="button"
+              data-action="resolve-ticket"
               className={styles.yeetButton}
               onClick={onYeet}
               disabled={yeeting}
               title={copy.worker.yeetHint}
+              aria-description={copy.worker.yeetHint}
             >
               🚀 {copy.worker.yeet}
             </button>
@@ -152,9 +183,11 @@ function AssigneeField({
         onAssign(value);
       }}
     >
-      <label className={styles.field}>
+      <label htmlFor="worker-ticket-assignee" className={styles.field}>
         {copy.ticket.assignee}
         <input
+          id="worker-ticket-assignee"
+          name="assignee_name"
           value={value}
           placeholder={copy.worker.assigneePlaceholder}
           maxLength={100}
@@ -162,8 +195,14 @@ function AssigneeField({
         />
       </label>
       <div className={styles.row}>
-        <button type="submit">{copy.worker.assign}</button>
-        <button type="button" onClick={() => onAssign(getSession()?.name ?? "")}>
+        <button type="submit" data-action="assign-ticket">
+          {copy.worker.assign}
+        </button>
+        <button
+          type="button"
+          data-action="assign-to-self"
+          onClick={() => onAssign(getSession()?.name ?? "")}
+        >
           {copy.worker.assignToMe}
         </button>
       </div>

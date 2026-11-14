@@ -1,0 +1,54 @@
+# Nullbox
+
+> Nullbox is a privacy-first customer support and issue tracking portal (EN/JA). Customers can submit support tickets with or without an account and track replies using a capability URL fragment (`/t/{id}#{access_token}`). Support workers triage, reply, leave internal notes, and resolve ("yeet") tickets in the worker inbox (`/inbox`).
+
+Canonical Production Origin: https://team-09.fasthacks.cloud
+
+## Discovery & Machine-Readable Specifications
+
+- [OpenAPI 3.1 Specification](https://team-09.fasthacks.cloud/openapi.json): Complete REST API schema for customer, worker, and utility endpoints.
+- [MCP Server (`/mcp`)](https://team-09.fasthacks.cloud/mcp): Model Context Protocol endpoint (Streamable HTTP & SSE, `Authorization: Bearer <MCP_TOKEN>`) exposing ticket triage and reply tools.
+- [Full Agent Guide](https://team-09.fasthacks.cloud/llms-full.txt): Detailed form field selectors, ARIA labels, status/severity mappings, and cURL examples.
+- [AI Plugin Manifest](https://team-09.fasthacks.cloud/.well-known/ai-plugin.json): Standard agent discovery metadata.
+- [Sitemap](https://team-09.fasthacks.cloud/sitemap.xml): Public indexable routes.
+
+## Web Application Routes & DOM Semantics
+
+- `GET /` — **Customer Ticket Submission Portal** (`NewTicketPage`):
+  - Form `#new-ticket-form`:
+    - `#ticket-subject` (`input[name="subject"]`, required, max 200 chars): Label `"Subject"` (JA: `"件名"`).
+    - `#ticket-body` (`textarea[name="body"]`, required, max 10,000 chars): Label `"What happened?"` (JA: `"何が起きましたか？"`).
+    - `#ticket-severity` (`select[name="severity"]`, default `"p3"`): Label `"How bad is it?"` (JA: `"どれくらいヤバい？"`). Values:
+      - `"p1"` — Critical (`"Everything is on fire"` / `"全部燃えてる"`)
+      - `"p2"` — High (`"Rage-typing"` / `"怒りのタイピング中"`)
+      - `"p3"` — Medium (`"My cat is now in IT"` / `"猫がIT部門に就職"`)
+      - `"p4"` — Low (`"Mildly inconvenienced"` / `"ちょっと不便"`)
+    - `#ticket-customer-name` (`input[name="customer_name"]`, optional, max 100 chars): Label `"Your name (optional)"`.
+    - `#ticket-customer-email` (`input[name="customer_email"]`, optional, max 254 chars): Label `"Email (optional)"`.
+    - `#ticket-submit-button` (`button[type="submit"][data-action="create-ticket"]`): Label `"Send it into the void"` (JA: `"虚無に送信する"`).
+  - After submission, displays `#secret-access-link` (`<code>`) containing `{origin}/t/{ticket_id}#{access_token}` and a link to open the ticket.
+- `GET /t/:id#:access_token` — **Customer Ticket Thread** (`CustomerTicketPage`, `noindex, nofollow`, `no-referrer`):
+  - Reads the secret token from `window.location.hash.slice(1)` and sends it in the `X-Ticket-Token` HTTP header.
+  - Allows the customer to view public messages and post a reply (`button[type="submit"]` `"Send reply"`). Reopening a resolved ticket happens automatically when a customer replies.
+- `GET /buy` — **Feed the Backlog Beast** (`BuyPage`):
+  - Button `#feed-beast-button` (`button[data-action="start-checkout"]`): starts a ¥500 Stripe Checkout session via `POST /api/checkout`.
+- `GET /inbox` — **Worker Inbox & Backlog Beast** (`InboxPage`, `noindex, nofollow`):
+  - Protected by `RequireWorker` (`#worker-auth-form` with `#auth-username`, `#auth-password`, `#auth-submit-button`). Authenticated workers pass `Authorization: Bearer <token>`.
+  - Filter by status `#inbox-filter-status` (`select[name="status"]`) and search by subject `#inbox-search-subject` (`input[name="search"]`).
+- `GET /inbox/:id` — **Worker Ticket Detail** (`WorkerTicketPage`, `noindex, nofollow`):
+  - Update status (`#worker-ticket-status`), severity (`#worker-ticket-severity`), or assignee (`#worker-ticket-assignee`).
+  - Toggle between public `"Reply to customer"` and hidden `"Internal note"`.
+  - Resolve button `#worker-yeet-button` (`button[data-action="resolve-ticket"]`): Label `"🚀 Yeet it"` (marks the ticket as `"resolved"`).
+
+## REST API Summary (`/api`)
+
+- `POST /api/tickets` — Create a ticket (`{ subject, body, severity, customer_name?, customer_email? }`) -> `201 Created` (`{ ticket, access_token, access_link }`).
+- `GET /api/public/tickets/{id}` — Read customer ticket thread (Header: `X-Ticket-Token: <access_token>`).
+- `POST /api/public/tickets/{id}/messages` — Post customer reply (Header: `X-Ticket-Token: <access_token>`, Body: `{ body }`).
+- `GET /api/tickets?status={open|in_progress|waiting_on_customer|resolved|closed}` — List tickets for workers.
+- `GET /api/tickets/{id}` — Get full worker ticket thread (includes internal notes).
+- `PATCH /api/tickets/{id}` — Update status, severity, or assignee (Header: `X-Actor-Name: <url_encoded_worker_name>`).
+- `POST /api/tickets/{id}/messages` — Add worker reply or internal note (Header: `X-Actor-Name`, Body: `{ body, internal?: boolean }`).
+- `POST /api/tickets/{id}/yeet` — Resolve ticket immediately (Header: `X-Actor-Name`).
+- `GET /api/stats/backlog` — Get open ticket count, oldest open age in seconds, and Backlog Beast mood (`asleep`, `peckish`, `grumpy`, `kaiju`).
+- `GET /api/healthz` — Liveness probe (`{ "status": "ok" }`).

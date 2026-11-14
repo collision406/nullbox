@@ -18,6 +18,9 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
+      <a href="#main-content" className={styles.skipLink}>
+        {copy.seo.skipToMain}
+      </a>
       <header className={styles.header}>
         <NavLink to="/" className={styles.brand}>
           <span className={styles.logo} aria-hidden="true">
@@ -28,7 +31,7 @@ export function AppShell() {
             <small>{copy.app.subtitle}</small>
           </span>
         </NavLink>
-        <nav className={styles.nav}>
+        <nav className={styles.nav} aria-label={copy.seo.mainNav}>
           <NavLink to="/" end>
             {copy.app.nav.submit}
           </NavLink>
@@ -40,7 +43,7 @@ export function AppShell() {
           <LanguageSwitcher />
         </div>
       </header>
-      <main className={styles.main}>
+      <main id="main-content" className={styles.main}>
         <Outlet />
       </main>
       <footer className={styles.footer}>{copy.app.footer}</footer>

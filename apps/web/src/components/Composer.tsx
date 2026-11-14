@@ -45,9 +45,11 @@ export function Composer({
     }
   };
 
+  const hintId = `${id}-hint`;
   return (
     <form
       className={styles.composer}
+      aria-busy={busy || undefined}
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
         void submit();
@@ -59,16 +61,21 @@ export function Composer({
       </label>
       <textarea
         id={id}
+        name="body"
         value={body}
         rows={4}
+        required
         placeholder={placeholder}
+        aria-describedby={hintId}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={onKeyDown}
         onKeyUp={(event) => setCapsLock(event.getModifierState("CapsLock"))}
       />
       <div className={styles.actions}>
         {children}
-        <span className={styles.hint}>{copy.customer.sendHint}</span>
+        <span id={hintId} className={styles.hint}>
+          {copy.customer.sendHint}
+        </span>
         <button type="submit" disabled={busy || !body.trim()}>
           {submitLabel}
         </button>
