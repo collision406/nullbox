@@ -104,7 +104,9 @@ pub async fn rate_limit(State(state): State<AppState>, request: Request, next: N
     if verdict.is_ok() && posting && matches!(path, "/api/tickets" | "/api/checkout") {
         verdict = state.limits.create_ticket.check(ip);
     }
-    if verdict.is_ok() && posting && matches!(path, "/api/auth/signup" | "/api/auth/login") {
+    let signing_in = (posting && matches!(path, "/api/auth/signup" | "/api/auth/login"))
+        || matches!(path, "/api/auth/sso/login" | "/api/auth/sso/callback");
+    if verdict.is_ok() && signing_in {
         verdict = state.limits.auth.check(ip);
     }
     match verdict {

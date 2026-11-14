@@ -6,6 +6,83 @@ const LEAKED_ADMIN_TOKEN_SHA256: &str = "2288c6a582bf94ef4d17d2f52bdbbaf21a3c79a
 /// Shorter secrets are guessable; refuse them at startup instead of at breach time.
 pub const MIN_ADMIN_TOKEN_LEN: usize = 32;
 
+/// A single sign-on provider that speaks OAuth 2 (authorization code with PKCE).
+#[derive(Clone)]
+pub struct SsoConfig {
+    /// Stable id stored with each account; accounts are keyed by (this, the provider's user id).
+    pub provider: String,
+    /// What the button says.
+    pub name: String,
+    pub auth_url: String,
+    pub token_url: String,
+    pub userinfo_url: String,
+    pub scope: String,
+    pub client_id: String,
+    pub client_secret: String,
+    /// The userinfo field that identifies the person, stable and never reused: `id` or `sub`.
+    pub subject_field: String,
+    /// Userinfo fields tried in order for the name shown next to replies.
+    pub name_fields: Vec<String>,
+}
+
+impl std::fmt::Debug for SsoConfig {
+    /// Never prints the client secret.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SsoConfig")
+            .field("provider", &self.provider)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<set>")
+            .finish_non_exhaustive()
+    }
+}
+
+impl SsoConfig {
+    /// The endpoints of a known provider; only the client id and secret are ours.
+    fn preset(provider: &str, client_id: String, client_secret: String) -> Option<Self> {
+        let (name, auth_url, token_url, userinfo_url, scope, subject_field, name_fields): (
+            &str,
+            &str,
+            &str,
+            &str,
+            &str,
+            &str,
+            &[&str],
+        ) = match provider {
+            "github" => (
+                "GitHub",
+                "https://github.com/login/oauth/authorize",
+                "https://github.com/login/oauth/access_token",
+                "https://api.github.com/user",
+                "read:user",
+                "id",
+                &["name", "login"],
+            ),
+            "google" => (
+                "Google",
+                "https://accounts.google.com/o/oauth2/v2/auth",
+                "https://oauth2.googleapis.com/token",
+                "https://openidconnect.googleapis.com/v1/userinfo",
+                "openid profile",
+                "sub",
+                &["name", "email"],
+            ),
+            _ => return None,
+        };
+        Some(Self {
+            provider: provider.to_owned(),
+            name: name.to_owned(),
+            auth_url: auth_url.to_owned(),
+            token_url: token_url.to_owned(),
+            userinfo_url: userinfo_url.to_owned(),
+            scope: scope.to_owned(),
+            client_id,
+            client_secret,
+            subject_field: subject_field.to_owned(),
+            name_fields: name_fields.iter().map(|field| (*field).to_owned()).collect(),
+        })
+    }
+}
+
 /// Every setting, read from the environment (plus `.env` in dev). See `.env.example`.
 #[derive(Clone)]
 pub struct Config {
@@ -45,6 +122,9 @@ pub struct Config {
     /// Have I Been Pwned's range API, used to refuse leaked passwords. Not read from the
     /// environment; tests point it at a local fake.
     pub hibp_api_base: String,
+    /// `SSO_PROVIDER` (`github` or `google`), `SSO_CLIENT_ID` and `SSO_CLIENT_SECRET`, all three
+    /// or none. Unset = no single sign-on button.
+    pub sso: Option<SsoConfig>,
 }
 
 impl std::fmt::Debug for Config {
@@ -63,6 +143,7 @@ impl std::fmt::Debug for Config {
             .field("stripe_api_key", &self.stripe_api_key.as_ref().map(|_| "<set>"))
             .field("signup_invite_code", &self.signup_invite_code.as_ref().map(|_| "<set>"))
             .field("rate_limit_auth_per_minute", &self.rate_limit_auth_per_minute)
+            .field("sso", &self.sso)
             .finish()
     }
 }
@@ -123,6 +204,18 @@ impl Config {
             return Err(invalid("SIGNUP_INVITE_CODE", "shorter than 8 characters"));
         }
 
+        let sso = match (opt("SSO_PROVIDER"), opt("SSO_CLIENT_ID"), opt("SSO_CLIENT_SECRET")) {
+            (None, None, None) => None,
+            (Some(provider), Some(client_id), Some(client_secret)) => {
+                let provider = provider.to_ascii_lowercase();
+                Some(
+                    SsoConfig::preset(&provider, client_id, client_secret)
+                        .ok_or_else(|| invalid("SSO_PROVIDER", "unknown provider: use github or google"))?,
+                )
+            }
+            _ => return Err(invalid("SSO_PROVIDER", "SSO_PROVIDER, SSO_CLIENT_ID and SSO_CLIENT_SECRET go together")),
+        };
+
         Ok(Self {
             bind_addr,
             database_url: var("DATABASE_URL", "sqlite://nullbox.db"),
@@ -142,6 +235,7 @@ impl Config {
             signup_invite_code,
             rate_limit_auth_per_minute: number("RATE_LIMIT_AUTH_PER_MINUTE", 10)?,
             hibp_api_base: crate::passwords::HIBP_API_BASE.to_owned(),
+            sso,
         })
     }
 
@@ -210,6 +304,25 @@ mod tests {
             assert_eq!(error.name, "STRIPE_API_KEY");
             assert!(!error.to_string().contains(&live));
         }
+    }
+
+    #[test]
+    fn single_sign_on_needs_all_three_settings_and_hides_the_secret() {
+        let secret = "client-secret-value-0123456789";
+        let all = [("SSO_PROVIDER", "GitHub"), ("SSO_CLIENT_ID", "abc123"), ("SSO_CLIENT_SECRET", secret)];
+        let sso = parse(&all).unwrap().sso.unwrap();
+        assert_eq!((sso.provider.as_str(), sso.name.as_str()), ("github", "GitHub"));
+        assert!(sso.auth_url.starts_with("https://github.com/"));
+        assert_eq!(sso.client_secret, secret);
+        assert!(!format!("{sso:?}").contains(secret));
+        assert!(!format!("{:?}", parse(&all).unwrap()).contains(secret));
+
+        assert!(parse(&[]).unwrap().sso.is_none());
+        assert!(parse(&[("SSO_PROVIDER", "google"), ("SSO_CLIENT_ID", "x")]).is_err());
+        assert!(parse(&[("SSO_CLIENT_ID", "x"), ("SSO_CLIENT_SECRET", secret)]).is_err());
+        let unknown = [("SSO_PROVIDER", "myspace"), ("SSO_CLIENT_ID", "x"), ("SSO_CLIENT_SECRET", secret)];
+        assert_eq!(parse(&unknown).unwrap_err().name, "SSO_PROVIDER");
+        assert!(parse(&[("SSO_PROVIDER", "google"), ("SSO_CLIENT_ID", "x"), ("SSO_CLIENT_SECRET", secret)]).is_ok());
     }
 
     #[test]

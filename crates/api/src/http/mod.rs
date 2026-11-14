@@ -6,6 +6,7 @@ mod checkout;
 mod customer;
 pub mod extract;
 pub mod guard;
+mod sso;
 mod utility;
 mod worker;
 
@@ -38,6 +39,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/signup", post(auth::signup))
         .route("/auth/login", post(auth::login))
         .route("/auth/logout", post(auth::logout))
+        .route("/auth/sso/login", get(sso::login))
+        .route("/auth/sso/callback", get(sso::callback))
         .route("/me", get(auth::me))
         // payments
         .route("/checkout", post(checkout::create))
