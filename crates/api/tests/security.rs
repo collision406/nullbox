@@ -258,3 +258,46 @@ async fn ticket_changes_are_audited_with_their_actor() {
     assert_eq!((&yeeted["actor"], &yeeted["ticket_id"]), (&json!("山田"), &json!(id)));
     assert!(log.iter().any(|entry| entry["kind"] == "ticket_created" && entry["ticket_id"] == json!(id)));
 }
+
+// --- 8b. The audit log must show what a reviewer will look for ----------------------
+
+#[tokio::test]
+async fn a_new_ticket_shows_up_in_the_audit_log_by_its_subject() {
+    let app = app().await;
+    let (id, _) = create_ticket(&app, "probe-7f3a91 please ignore").await;
+
+    let mut found = None;
+    for _ in 0..100 {
+        found = audit_log(&app).await.into_iter().find(|entry| entry["kind"] == "ticket_created");
+        if found.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let entry = found.expect("ticket_created in the audit log");
+    assert_eq!(entry["ticket_id"], json!(id));
+    assert!(entry["detail"].as_str().unwrap().contains("probe-7f3a91 please ignore"));
+}
+
+#[tokio::test]
+async fn a_worker_request_with_a_made_up_token_is_audited_without_the_token() {
+    let app = app_with(nullbox_api::Config { trust_proxy: true, ..config() }).await;
+    let attempt = [
+        ("authorization", "Bearer made-up-token-0xDEADBEEF"),
+        ("user-agent", "HOT-probe/1.0"),
+        ("x-forwarded-for", "198.51.100.77"),
+    ];
+    let (status, body) = send(&app, "GET", "/api/tickets", &attempt, None).await;
+    assert_eq!((status, &body["code"]), (StatusCode::UNAUTHORIZED, &json!("missing_actor")));
+
+    let log = audit_log(&app).await;
+    let entry = log.iter().find(|entry| entry["kind"] == "worker_access_denied").expect("a worker_access_denied entry");
+    assert_eq!(entry["client_ip"], "198.51.100.77");
+    let detail = entry["detail"].as_str().unwrap();
+    assert!(detail.starts_with("GET /api/tickets: "), "{detail}");
+    assert!(detail.contains("user-agent: HOT-probe/1.0"), "{detail}");
+    // The attempt can be recognised (same token, same fingerprint) but never read back.
+    let fingerprint = nullbox_api::token::fingerprint("made-up-token-0xDEADBEEF");
+    assert!(detail.contains(&format!("credential sha256:{fingerprint} (24 chars)")), "{detail}");
+    assert!(!Value::Array(log).to_string().contains("made-up-token-0xDEADBEEF"));
+}

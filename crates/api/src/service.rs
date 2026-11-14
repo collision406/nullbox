@@ -63,6 +63,7 @@ impl TicketService {
         self.events.emit(DomainEvent::TicketCreated {
             ticket_id: ticket.id,
             number: ticket.number,
+            subject: ticket.subject.clone(),
             severity: ticket.severity,
         });
         Ok(CreatedTicket { ticket, access_token })

@@ -18,6 +18,12 @@ pub fn hash(token: &str) -> String {
     Sha256::digest(token.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// A short, non-reversible label for a credential that was presented, so an audit
+/// entry can tell two attempts apart without ever storing what was typed.
+pub fn fingerprint(secret: &str) -> String {
+    hash(secret)[..8].to_owned()
+}
+
 /// Compares two secrets without leaking, through response time, how many leading
 /// characters match. Both sides are hashed first, so the lengths don't leak either.
 pub fn secrets_match(candidate: &str, expected: &str) -> bool {
