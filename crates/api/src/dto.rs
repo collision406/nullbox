@@ -68,6 +68,13 @@ pub struct UpdateTicketRequest {
     pub assignee_name: Option<String>,
 }
 
+/// Where to send the buyer: a Stripe-hosted checkout page.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct CheckoutResponse {
+    pub url: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListTicketsQuery {
     /// Without a status, all active tickets (open, in progress, waiting) are listed.

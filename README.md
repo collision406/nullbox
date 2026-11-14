@@ -88,6 +88,7 @@ stable and shared with TypeScript; `message` is English and for developers only.
 | GET | `/stats/backlog` | `{ open_count, beast_mood, oldest_open_age_secs }` |
 | GET | `/admin/export` | every ticket, for the CEO's spreadsheet; header `X-Admin-Token` |
 | GET | `/admin/audit?limit=` | the audit log, newest first; header `X-Admin-Token` |
+| POST | `/checkout` | open a Stripe Checkout Session (test mode); returns `{ url }` of the Stripe-hosted page |
 | GET | `/healthz` | liveness |
 | GET | `/teapot` | 418, as specified by RFC 2324 |
 
@@ -112,6 +113,21 @@ API, from env vars or `.env` (see `.env.example` and `crates/api/src/config.rs`)
   These cover the API; the web server that serves `apps/web/dist` has to set its own.
 - **Audit log**: every ticket change, every export and every refused admin request is stored in
   `audit_log` and readable at `/api/admin/audit`.
+
+## Payments
+
+`/buy` lets a visitor feed the Backlog Beast a snack for ¥500 through Stripe Checkout. The browser asks
+`POST /api/checkout`, the API opens the session with `STRIPE_API_KEY` and returns the URL of a page hosted
+by Stripe; after paying, the buyer lands on `/thanks`. The card never touches this server, and the price is
+fixed in `crates/api/src/payments.rs`: the request has no body to tamper with.
+
+- **Test mode only**: a key that isn't `sk_test_…` or `rk_test_…` stops the API from starting.
+- **Without a key** `POST /api/checkout` answers 503 and nothing is sent anywhere.
+- **Rate limited** with the ticket creation limit (each call costs a request to Stripe), and audited as
+  `checkout_started` (client address and Stripe session id; never the key).
+- Test card: `4242 4242 4242 4242`, any future expiry, any CVC.
+
+Tests: `crates/api/tests/payments.rs`, against a fake Stripe on a local port.
 
 One test per item lives in `crates/api/tests/security.rs`. Still open: worker endpoints trust
 `X-Actor-Name` until a login replaces the `Actor` extractor.

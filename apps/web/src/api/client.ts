@@ -7,6 +7,7 @@
  */
 import { getActorName } from "./actor";
 import type { BacklogStats } from "./generated/BacklogStats";
+import type { CheckoutResponse } from "./generated/CheckoutResponse";
 import type { CreateTicketRequest } from "./generated/CreateTicketRequest";
 import type { CreateTicketResponse } from "./generated/CreateTicketResponse";
 import type { ErrorBody } from "./generated/ErrorBody";
@@ -82,6 +83,9 @@ export const api = {
       body: { body },
       headers: ticketTokenHeaders(token),
     }),
+
+  // payments: no auth; the server owns the price and the Stripe call
+  createCheckout: () => request<CheckoutResponse>("POST", "/checkout"),
 
   // workers
   listTickets: (status?: TicketStatus) =>

@@ -53,6 +53,9 @@ pub enum ApiError {
     /// The database is unreachable. It's not DNS. There's no way it's DNS. It was DNS.
     #[error("storage unavailable: {0}")]
     ProbablyDns(String),
+    /// The payment provider is not configured or didn't answer. The details are logged, never sent.
+    #[error("payments unavailable: {0}")]
+    PaymentsUnavailable(String),
     /// Anything unexpected. The details are logged, never sent.
     #[error("internal error: {0}")]
     WorksOnMyMachine(String),
@@ -77,7 +80,7 @@ impl ApiError {
             Self::Validation(_) => ErrorCode::ValidationFailed,
             Self::InvalidTransition(_) => ErrorCode::InvalidStatusTransition,
             Self::TicketClosed => ErrorCode::TicketClosed,
-            Self::ProbablyDns(_) => ErrorCode::ServiceUnavailable,
+            Self::ProbablyDns(_) | Self::PaymentsUnavailable(_) => ErrorCode::ServiceUnavailable,
             Self::WorksOnMyMachine(_) => ErrorCode::Internal,
             Self::Teapot => ErrorCode::ImATeapot,
             Self::RateLimited { .. } => ErrorCode::RateLimited,
@@ -93,7 +96,7 @@ impl ApiError {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::InvalidTransition(_) | Self::TicketClosed => StatusCode::CONFLICT,
-            Self::ProbablyDns(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Self::ProbablyDns(_) | Self::PaymentsUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::WorksOnMyMachine(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Teapot => StatusCode::IM_A_TEAPOT,
             Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
@@ -107,7 +110,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         // Details of unexpected failures are logged, never sent.
         let message = match &self {
-            Self::ProbablyDns(detail) | Self::WorksOnMyMachine(detail) => {
+            Self::ProbablyDns(detail) | Self::PaymentsUnavailable(detail) | Self::WorksOnMyMachine(detail) => {
                 tracing::error!(error = %detail, code = ?self.code(), "request failed");
                 format!("{:?}", self.code())
             }

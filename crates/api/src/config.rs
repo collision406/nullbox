@@ -22,14 +22,20 @@ pub struct Config {
     pub admin_token: Option<String>,
     /// `RATE_LIMIT_PER_MINUTE`: requests per client IP per minute, all routes. 0 disables.
     pub rate_limit_per_minute: u32,
-    /// `RATE_LIMIT_CREATE_PER_MINUTE`: new tickets per client IP per minute (the one
-    /// public write). 0 disables.
+    /// `RATE_LIMIT_CREATE_PER_MINUTE`: new tickets and new checkouts per client IP per
+    /// minute (the public writes). 0 disables.
     pub rate_limit_create_per_minute: u32,
     /// `TRUST_PROXY`: take the client IP from `X-Forwarded-For`. Only enable behind your
     /// own reverse proxy, otherwise clients can pick their own rate-limit bucket.
     pub trust_proxy: bool,
     /// `REQUEST_TIMEOUT_SECS`: a request that takes longer is answered with 503.
     pub request_timeout_secs: u64,
+    /// `STRIPE_API_KEY`: a Stripe test key (`sk_test_…` or a restricted `rk_test_…`). Unset =
+    /// checkout answers 503. Live keys are refused: this app only runs in test mode.
+    pub stripe_api_key: Option<String>,
+    /// Where Stripe's API lives. Not read from the environment, so a key can't be redirected
+    /// to another host by configuration; tests point it at a local fake.
+    pub stripe_api_base: String,
 }
 
 impl std::fmt::Debug for Config {
@@ -45,6 +51,7 @@ impl std::fmt::Debug for Config {
             .field("rate_limit_create_per_minute", &self.rate_limit_create_per_minute)
             .field("trust_proxy", &self.trust_proxy)
             .field("request_timeout_secs", &self.request_timeout_secs)
+            .field("stripe_api_key", &self.stripe_api_key.as_ref().map(|_| "<set>"))
             .finish()
     }
 }
@@ -90,6 +97,16 @@ impl Config {
             }
         }
 
+        let stripe_api_key = opt("STRIPE_API_KEY");
+        if let Some(key) = &stripe_api_key
+            && !(key.starts_with("sk_test_") || key.starts_with("rk_test_"))
+        {
+            return Err(invalid(
+                "STRIPE_API_KEY",
+                "only Stripe test keys (sk_test_… or rk_test_…) are accepted: this app does not move real money",
+            ));
+        }
+
         Ok(Self {
             bind_addr,
             database_url: var("DATABASE_URL", "sqlite://nullbox.db"),
@@ -104,6 +121,8 @@ impl Config {
             rate_limit_create_per_minute: number("RATE_LIMIT_CREATE_PER_MINUTE", 10)?,
             trust_proxy: matches!(var("TRUST_PROXY", "false").to_ascii_lowercase().as_str(), "1" | "true" | "yes"),
             request_timeout_secs: u64::from(number("REQUEST_TIMEOUT_SECS", 30)?.max(1)),
+            stripe_api_key,
+            stripe_api_base: crate::payments::STRIPE_API_BASE.to_owned(),
         })
     }
 
@@ -149,6 +168,29 @@ mod tests {
         let printed = format!("{:?}", parse(&[("ADMIN_TOKEN", &secret)]).unwrap());
         assert!(!printed.contains(&secret));
         assert!(printed.contains("<set>"));
+    }
+
+    /// A fake Stripe key, assembled at run time so that no line of source looks like a
+    /// real one to a secret scanner (GitHub's push protection blocks those).
+    fn fake_key(kind: &str, mode: &str) -> String {
+        [kind, mode, "0123456789abcdefghijklmnop"].join("_")
+    }
+
+    #[test]
+    fn only_stripe_test_keys_are_accepted_and_never_printed() {
+        let restricted = fake_key("rk", "test");
+        let parsed = parse(&[("STRIPE_API_KEY", &restricted)]).unwrap();
+        assert_eq!(parsed.stripe_api_key.as_deref(), Some(restricted.as_str()));
+        assert!(!format!("{parsed:?}").contains(&restricted));
+        assert!(parse(&[("STRIPE_API_KEY", &fake_key("sk", "test"))]).is_ok());
+        assert_eq!(parse(&[]).unwrap().stripe_api_key, None);
+
+        // A live key would move real money: refused at startup, and the error doesn't repeat it.
+        for live in [fake_key("sk", "live"), fake_key("rk", "live"), "whatever".to_owned()] {
+            let error = parse(&[("STRIPE_API_KEY", &live)]).unwrap_err();
+            assert_eq!(error.name, "STRIPE_API_KEY");
+            assert!(!error.to_string().contains(&live));
+        }
     }
 
     #[test]

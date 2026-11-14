@@ -11,9 +11,21 @@ const en = {
   app: {
     name: "Nullbox",
     subtitle: "Support, but make it void.",
-    nav: { submit: "Report a problem", inbox: "Worker inbox" },
+    nav: { submit: "Report a problem", inbox: "Worker inbox", feed: "Feed the Beast" },
     language: "Language",
     footer: "No tickets were harmed in the making of this inbox.",
+  },
+
+  feed: {
+    title: "Feed the Backlog Beast",
+    pitch:
+      "The Beast is hungry and the backlog is not a balanced diet. One tasty snack keeps it chewing instead of looking at you. No refunds; it already ate the receipt.",
+    price: "¥500",
+    button: "Feed the Beast",
+    busy: "Unwrapping the snack…",
+    thanksTitle: "The Beast is chewing. Thank you.",
+    thanksBody: "Your snack has been eaten with great enthusiasm. The tickets are safe. For now.",
+    back: "Report a problem",
   },
 
   status: {
