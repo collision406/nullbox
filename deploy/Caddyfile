@@ -5,11 +5,24 @@
 }
 
 {$SITE_ADDRESS} {
-	encode zstd gzip
+	# Compress everything but MCP: its event stream must reach agents event by
+	# event, not whenever a compression buffer happens to fill.
+	@compressible not path /mcp /mcp/*
+	encode @compressible zstd gzip
 
 	# The API always lives under /api and keeps its own /api prefix.
 	handle /api/* {
 		reverse_proxy api:3000
+	}
+
+	# MCP for AI agents sits next to /api: /mcp, plus /mcp/messages for old SSE
+	# clients. Without this block the SPA below answers /mcp with index.html.
+	# flush_interval -1 passes the event stream through unbuffered.
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		reverse_proxy api:3000 {
+			flush_interval -1
+		}
 	}
 
 	# React Router owns the rest of the URL space; unknown paths get the SPA.

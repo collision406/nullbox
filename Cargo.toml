@@ -16,6 +16,7 @@ axum = { version = "0.8.9", features = ["macros"] }
 base64 = "0.23.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 dotenvy = "0.15.7"
+futures-util = { version = "0.3.34", default-features = false }
 http-body-util = "0.1.5"
 percent-encoding = "2.3.2"
 rand = "0.10.3"

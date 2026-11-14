@@ -99,11 +99,13 @@ stable and shared with TypeScript; `message` is English and for developers only.
 
 Worker endpoints need `Authorization: Bearer <session token>` (see [Accounts](#accounts)); the old `X-Actor-Name` header is ignored.
 
+AI agents use the MCP server at `/mcp`, next to `/api` rather than under it: see [docs/MCP.md](docs/MCP.md).
+
 ## Configuration
 
 API, from env vars or `.env` (see `.env.example` and `crates/api/src/config.rs`):
 `BIND_ADDR`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_WEB_URL`, `ADMIN_TOKEN`, `RATE_LIMIT_PER_MINUTE`,
-`RATE_LIMIT_CREATE_PER_MINUTE`, `TRUST_PROXY`, `REQUEST_TIMEOUT_SECS`, `RUST_LOG`.
+`RATE_LIMIT_CREATE_PER_MINUTE`, `TRUST_PROXY`, `REQUEST_TIMEOUT_SECS`, `MCP_TOKEN`, `RUST_LOG`.
 
 ## Security
 
@@ -172,7 +174,7 @@ address, or to an empty value when one web server serves both the web app and `/
 | Postgres, multi-tenancy, backups | `TicketRepository` in `crates/api/src/repo/mod.rs` |
 | OpenTelemetry | everything logs through `tracing`; add a layer in `main.rs` |
 | Payments | a new route next to the others in `crates/api/src/http/mod.rs`; a page in `apps/web/src/router.tsx`; keys in `Config` |
-| MCP server for AI agents | a service at `/mcp`, next to the `/api` nest in `router()`; let its tools call `TicketService`, like the worker handlers do |
+| More MCP tools for AI agents | `catalogue()` and `call()` in `crates/api/src/http/mcp/tools.rs`; tools call `TicketService` like the worker handlers do ([docs/MCP.md](docs/MCP.md)) |
 | More languages, Serious Mode | add a dictionary of type `Copy` next to `apps/web/src/copy/en.ts` |
 | Tauri desktop/mobile | `VITE_API_BASE_URL` + `createHashRouter` in `apps/web/src/router.tsx` |
 

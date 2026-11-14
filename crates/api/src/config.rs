@@ -5,6 +5,8 @@ use std::net::SocketAddr;
 const LEAKED_ADMIN_TOKEN_SHA256: &str = "2288c6a582bf94ef4d17d2f52bdbbaf21a3c79ae986b5b7763bfdccbcde879a3";
 /// Shorter secrets are guessable; refuse them at startup instead of at breach time.
 pub const MIN_ADMIN_TOKEN_LEN: usize = 32;
+/// Same bar for the MCP service token: it lets an agent work every ticket.
+pub const MIN_MCP_TOKEN_LEN: usize = 32;
 
 /// Every setting, read from the environment (plus `.env` in dev). See `.env.example`.
 #[derive(Clone)]
@@ -45,6 +47,9 @@ pub struct Config {
     /// Have I Been Pwned's range API, used to refuse leaked passwords. Not read from the
     /// environment; tests point it at a local fake.
     pub hibp_api_base: String,
+    /// `MCP_TOKEN`: the bearer token AI agents present at `/mcp`; they act as
+    /// `agent:<client name>`. Unset = only workers' own session tokens open `/mcp`.
+    pub mcp_token: Option<String>,
 }
 
 impl std::fmt::Debug for Config {
@@ -63,6 +68,7 @@ impl std::fmt::Debug for Config {
             .field("stripe_api_key", &self.stripe_api_key.as_ref().map(|_| "<set>"))
             .field("signup_invite_code", &self.signup_invite_code.as_ref().map(|_| "<set>"))
             .field("rate_limit_auth_per_minute", &self.rate_limit_auth_per_minute)
+            .field("mcp_token", &self.mcp_token.as_ref().map(|_| "<set>"))
             .finish()
     }
 }
@@ -123,6 +129,11 @@ impl Config {
             return Err(invalid("SIGNUP_INVITE_CODE", "shorter than 8 characters"));
         }
 
+        let mcp_token = opt("MCP_TOKEN");
+        if mcp_token.as_ref().is_some_and(|token| token.chars().count() < MIN_MCP_TOKEN_LEN) {
+            return Err(invalid("MCP_TOKEN", format!("shorter than {MIN_MCP_TOKEN_LEN} characters")));
+        }
+
         Ok(Self {
             bind_addr,
             database_url: var("DATABASE_URL", "sqlite://nullbox.db"),
@@ -142,6 +153,7 @@ impl Config {
             signup_invite_code,
             rate_limit_auth_per_minute: number("RATE_LIMIT_AUTH_PER_MINUTE", 10)?,
             hibp_api_base: crate::passwords::HIBP_API_BASE.to_owned(),
+            mcp_token,
         })
     }
 
@@ -187,6 +199,16 @@ mod tests {
         let printed = format!("{:?}", parse(&[("ADMIN_TOKEN", &secret)]).unwrap());
         assert!(!printed.contains(&secret));
         assert!(printed.contains("<set>"));
+    }
+
+    #[test]
+    fn the_mcp_token_is_optional_but_never_weak_or_printed() {
+        assert_eq!(parse(&[]).unwrap().mcp_token, None);
+        assert_eq!(parse(&[("MCP_TOKEN", "agent007")]).unwrap_err().name, "MCP_TOKEN");
+        let strong = "m".repeat(MIN_MCP_TOKEN_LEN);
+        let config = parse(&[("MCP_TOKEN", &strong)]).unwrap();
+        assert_eq!(config.mcp_token.as_deref(), Some(strong.as_str()));
+        assert!(!format!("{config:?}").contains(&strong));
     }
 
     /// A fake Stripe key, assembled at run time so that no line of source looks like a
