@@ -14,7 +14,7 @@ pub const TICKET_TOKEN_HEADER: &str = "x-ticket-token";
 
 /// What an audit entry says about a refused request: the route, the reason, who asked
 /// and how. Credentials are only ever described (a fingerprint and a length), never kept.
-fn refusal_detail(parts: &Parts, reason: &str) -> String {
+pub(super) fn refusal_detail(parts: &Parts, reason: &str) -> String {
     // Inside the `/api` nest the URI has lost its prefix; log the path the client asked for.
     let path = parts.extensions.get::<OriginalUri>().map_or(parts.uri.path(), |original| original.path());
     let header = |name| parts.headers.get(name).and_then(|value| value.to_str().ok());
@@ -46,7 +46,7 @@ pub struct Actor {
 /// `Authorization: Bearer <token>`, without checking the token.
 pub struct BearerToken(pub String);
 
-fn bearer_token(parts: &Parts) -> Option<String> {
+pub(super) fn bearer_token(parts: &Parts) -> Option<String> {
     let value = parts.headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let (scheme, token) = value.split_once(' ')?;
     (scheme.eq_ignore_ascii_case("bearer") && !token.trim().is_empty()).then(|| token.trim().to_owned())

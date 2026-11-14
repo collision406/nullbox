@@ -17,8 +17,8 @@ pub async fn config(State(state): State<AppState>) -> Json<AuthConfig> {
 }
 
 /// The identity provider to offer, when one is set up.
-fn sso_provider(_state: &AppState) -> Option<SsoProvider> {
-    None
+fn sso_provider(state: &AppState) -> Option<SsoProvider> {
+    state.sso.as_ref().map(|sso| SsoProvider { name: sso.name().to_owned(), login_url: "/api/auth/sso/login".into() })
 }
 
 fn respond(session: crate::accounts::Session) -> Json<AuthResponse> {

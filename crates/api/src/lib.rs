@@ -22,6 +22,7 @@ pub mod payments;
 pub mod policy;
 pub mod repo;
 pub mod service;
+pub mod sso;
 pub mod token;
 
 use std::sync::Arc;
@@ -36,6 +37,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub audit: Arc<audit::AuditLog>,
     pub accounts: Arc<accounts::Accounts>,
+    /// `None` while no single sign-on provider is configured.
+    pub sso: Option<Arc<sso::Sso>>,
     pub limits: Arc<http::guard::RateLimits>,
     /// `None` while `STRIPE_API_KEY` is unset.
     pub payments: Option<Arc<payments::Stripe>>,
@@ -47,6 +50,8 @@ impl AppState {
     pub fn new(pool: sqlx::SqlitePool, config: Config) -> Self {
         let audit = Arc::new(audit::AuditLog::new(pool.clone()));
         let accounts = Arc::new(accounts::Accounts::new(pool.clone(), &config.hibp_api_base));
+        let sso =
+            config.sso.clone().map(|provider| Arc::new(sso::Sso::new(provider, pool.clone(), &config.public_web_url)));
         let repo = Arc::new(repo::SqliteTicketRepository::new(pool.clone()));
         let observability = Arc::new(observability::ObservabilityState::new());
         let events = Arc::new(audit::AuditEventSink::new(audit.clone(), observability.clone()));
@@ -58,6 +63,7 @@ impl AppState {
                 .as_ref()
                 .map(|key| Arc::new(payments::Stripe::new(&config.stripe_api_base, key))),
             config: Arc::new(config),
+            sso,
             audit,
             accounts,
             pool,

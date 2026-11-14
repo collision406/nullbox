@@ -6,6 +6,8 @@ mod checkout;
 mod customer;
 pub mod extract;
 pub mod guard;
+mod mcp;
+mod sso;
 mod utility;
 mod worker;
 
@@ -42,6 +44,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/signup", post(auth::signup))
         .route("/auth/login", post(auth::login))
         .route("/auth/logout", post(auth::logout))
+        .route("/auth/sso/login", get(sso::login))
+        .route("/auth/sso/callback", get(sso::callback))
         .route("/me", get(auth::me))
         // payments
         .route("/checkout", post(checkout::create))
@@ -57,7 +61,9 @@ pub fn router(state: AppState) -> Router {
         .route("/alerts/webhook", post(utility::trigger_alert))
         .route("/teapot", get(utility::teapot));
 
-    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &state).with_state(state)
+    // MCP for AI agents lives next to /api, not under it, and passes the same middleware.
+    let app = Router::new().nest("/api", api).merge(mcp::router(state.clone())).fallback(utility::not_found);
+    middleware(app, &state).with_state(state)
 }
 
 /// The one place for cross-cutting layers. Tracing exporters and auth middleware

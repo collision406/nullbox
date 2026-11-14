@@ -99,11 +99,13 @@ stable and shared with TypeScript; `message` is English and for developers only.
 
 Worker endpoints need `Authorization: Bearer <session token>` (see [Accounts](#accounts)); the old `X-Actor-Name` header is ignored.
 
+AI agents use the MCP server at `/mcp`, next to `/api` rather than under it: see [docs/MCP.md](docs/MCP.md).
+
 ## Configuration
 
 API, from env vars or `.env` (see `.env.example` and `crates/api/src/config.rs`):
 `BIND_ADDR`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_WEB_URL`, `ADMIN_TOKEN`, `RATE_LIMIT_PER_MINUTE`,
-`RATE_LIMIT_CREATE_PER_MINUTE`, `TRUST_PROXY`, `REQUEST_TIMEOUT_SECS`, `RUST_LOG`.
+`RATE_LIMIT_CREATE_PER_MINUTE`, `TRUST_PROXY`, `REQUEST_TIMEOUT_SECS`, `MCP_TOKEN`, `RUST_LOG`.
 
 ## Security
 
@@ -157,6 +159,37 @@ Workers sign up and log in with a username and a password; every reply carries t
 
 Tests: `crates/api/tests/auth.rs` and `crates/api/src/accounts.rs`.
 
+### Single sign-on
+
+Workers can also sign in with GitHub or Google instead of a password: set `SSO_PROVIDER` (`github` or
+`google`), `SSO_CLIENT_ID` and `SSO_CLIENT_SECRET` (all three or none) and the login screen shows a
+"Sign in with …" button. Register the application with the provider using this callback address:
+
+```
+{PUBLIC_WEB_URL}/api/auth/sso/callback
+```
+
+OAuth 2 authorization code flow with PKCE, built by hand in `crates/api/src/sso.rs`:
+
+- `GET /api/auth/sso/login` stores a random `state` and PKCE verifier (state hashed, valid 10 minutes,
+  **used once**) and sends the browser to the provider. The verifier and the client secret never go
+  through the browser.
+- A cookie (`nullbox_sso`: HttpOnly, Secure, SameSite=Lax, only sent to `/api/auth/sso`) ties the
+  sign-in to the browser that started it. A callback link made by an attacker and opened in a victim's
+  browser has no matching cookie and is refused before anything is exchanged (login CSRF).
+- `GET /api/auth/sso/callback` trades the code for an access token, asks the provider who the person
+  is, and finds or creates the account for that (provider, user id): never for a name or an email, and
+  never merged with a password account of the same name. The names shown come from the provider with
+  control and direction-changing characters removed.
+- The session token reaches the browser in the URL **fragment** (`/sso/done#token=…`), which is never
+  sent to a server, so it appears in no log. Logging out ends the session like any other.
+- SSO accounts have no password; sign-ins and refusals are audited (`sso_login_started`,
+  `sso_login_succeeded`, `sso_login_failed`) and share the log-in rate limit.
+
+Tests: `crates/api/tests/sso.rs`, against a fake provider that checks the client secret, the redirect
+address and the PKCE verifier. The `code` is in the callback's query string, so it can appear in access
+logs; it is single use and worthless without the verifier.
+
 Web, at build time: `VITE_API_BASE_URL`, the origin of the API without `/api`. Unset, the bundle calls
 `http://localhost:3000`, which is only right on your laptop. For a deployment, set it to your site's
 address, or to an empty value when one web server serves both the web app and `/api`.
@@ -172,7 +205,7 @@ address, or to an empty value when one web server serves both the web app and `/
 | Postgres, multi-tenancy, backups | `TicketRepository` in `crates/api/src/repo/mod.rs` |
 | OpenTelemetry | everything logs through `tracing`; add a layer in `main.rs` |
 | Payments | a new route next to the others in `crates/api/src/http/mod.rs`; a page in `apps/web/src/router.tsx`; keys in `Config` |
-| MCP server for AI agents | a service at `/mcp`, next to the `/api` nest in `router()`; let its tools call `TicketService`, like the worker handlers do |
+| More MCP tools for AI agents | `catalogue()` and `call()` in `crates/api/src/http/mcp/tools.rs`; tools call `TicketService` like the worker handlers do ([docs/MCP.md](docs/MCP.md)) |
 | More languages, Serious Mode | add a dictionary of type `Copy` next to `apps/web/src/copy/en.ts` |
 | Tauri desktop/mobile | `VITE_API_BASE_URL` + `createHashRouter` in `apps/web/src/router.tsx` |
 
