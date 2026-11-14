@@ -2,6 +2,8 @@
 # External uptime & readiness probe for Nullbox.
 # Checks liveness (/api/healthz) and database readiness (/api/readyz) and posts
 # an alert to /api/alerts/webhook (and optional ALERT_WEBHOOK_URL) on failure.
+# Posting to /api/alerts/webhook needs ADMIN_TOKEN in the environment (sent as
+# X-Admin-Token); without it the alert is refused and only ALERT_WEBHOOK_URL gets it.
 set -euo pipefail
 
 BASE_URL="${1:-https://team-09.fasthacks.cloud}"
@@ -15,6 +17,7 @@ send_alert() {
     payload=$(printf '{"title":"%s","message":"%s","severity":"critical","source":"external_uptime"}' "$title" "$message")
     curl -fsS -X POST "${BASE_URL}/api/alerts/webhook" \
         -H "Content-Type: application/json" \
+        -H "X-Admin-Token: ${ADMIN_TOKEN:-}" \
         -H "X-Request-Id: ${REQ_ID}" \
         -d "${payload}" >/dev/null 2>&1 || true
 

@@ -128,7 +128,8 @@ export const api = {
   backlogStats: () => request<BacklogStats>("GET", "/stats/backlog", { headers: authHeaders() }),
 
   // observability
-  observabilitySummary: () => request<ObservabilitySummary>("GET", "/observability/summary"),
+  observabilitySummary: () =>
+    request<ObservabilitySummary>("GET", "/observability/summary", { headers: authHeaders() }),
   triggerAlert: (body: CreateAlertRequest) =>
-    request<AlertRecord>("POST", "/alerts/webhook", { body }),
+    request<AlertRecord>("POST", "/alerts/webhook", { body, headers: authHeaders() }),
 };

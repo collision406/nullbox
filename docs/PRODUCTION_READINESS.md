@@ -89,6 +89,8 @@ Positions: **done** / **in progress** / **next** / **backlog**.
 - [x] Structured JSON logs with request IDs and latency (`crates/api/src/observability.rs`, `crates/api/src/http/mod.rs`, `deploy/Caddyfile`).
 - [x] `/readyz` that checks the database, separate from `/healthz` (`crates/api/src/http/utility.rs`).
 - [x] Metrics (request count/latency/errors, DB size, process) scraped or pushed (`/api/metrics`, `/api/observability/summary`, `/observability`).
+  The summary, the alert list and raising alerts need a worker session or `X-Admin-Token`
+  (the summary carries ticket subjects); `/api/metrics`, `/api/healthz` and `/api/readyz` are public.
 - [x] External uptime check and an alert route (`/api/alerts`, `/api/alerts/webhook`, `deploy/uptime-check.sh`).
 - **Where:** `middleware()` in `crates/api/src/http/mod.rs`, `main.rs`,
   `crates/api/src/audit.rs`, `crates/api/src/observability.rs`,

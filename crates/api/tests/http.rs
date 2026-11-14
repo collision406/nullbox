@@ -156,7 +156,9 @@ async fn stopped_database_flips_readiness_without_killing_liveness() {
     let (live_status, live_body) = send(&app, "GET", "/api/healthz", &[], None).await;
     assert_eq!((live_status, &live_body["status"]), (StatusCode::OK, &json!("ok")));
 
-    let (alert_status, alerts) = send(&app, "GET", "/api/alerts", &[], None).await;
+    // The admin token needs no database, so alerts stay readable during the outage.
+    let admin = [("x-admin-token", ADMIN_TOKEN)];
+    let (alert_status, alerts) = send(&app, "GET", "/api/alerts", &admin, None).await;
     assert_eq!(alert_status, StatusCode::OK);
     assert!(alerts.as_array().unwrap().iter().any(|a| a["source"] == "readyz"));
 }
@@ -175,23 +177,27 @@ async fn metrics_and_observability_summary_track_traffic_errors_and_alerts() {
     .await;
     send(&app, "GET", "/api/teapot", &[], None).await;
 
-    let (alert_status, alert) = send(
-        &app,
-        "POST",
-        "/api/alerts/webhook",
-        &[],
-        Some(json!({
-            "title": "Synthetic probe warning",
-            "message": "High latency from Tokyo probe",
-            "severity": "warning",
-            "source": "uptime-check"
-        })),
-    )
-    .await;
+    let probe = json!({
+        "title": "Synthetic probe warning",
+        "message": "High latency from Tokyo probe",
+        "severity": "warning",
+        "source": "uptime-check"
+    });
+    // Nobody anonymous raises alerts or reads the summary: it carries ticket subjects.
+    assert_eq!(send(&app, "POST", "/api/alerts/webhook", &[], Some(probe.clone())).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(send(&app, "GET", "/api/observability/summary", &[], None).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(send(&app, "GET", "/api/alerts", &[], None).await.0, StatusCode::UNAUTHORIZED);
+    let wrong = [("x-admin-token", "not-the-token")];
+    assert_eq!(send(&app, "GET", "/api/alerts", &wrong, None).await.0, StatusCode::FORBIDDEN);
+
+    // Scripts use the admin token; the dashboard uses a worker's session.
+    let admin = [("x-admin-token", ADMIN_TOKEN)];
+    let (alert_status, alert) = send(&app, "POST", "/api/alerts/webhook", &admin, Some(probe)).await;
     assert_eq!(alert_status, StatusCode::CREATED);
     assert_eq!(alert["source"], "uptime-check");
 
-    let (status, summary) = send(&app, "GET", "/api/observability/summary", &[], None).await;
+    let observer = worker(&app, "observer").await;
+    let (status, summary) = send(&app, "GET", "/api/observability/summary", &[observer.header()], None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(summary["db_ready"], true);
     assert!(summary["db_size_bytes"].as_u64().unwrap() > 0);

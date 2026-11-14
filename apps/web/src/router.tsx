@@ -27,12 +27,13 @@ export const router = createBrowserRouter([
       { path: "/thanks", element: <ThanksPage /> },
       // worker inbox
       { path: "/sso/done", element: <SsoDonePage /> },
-      { path: "/observability", element: <ObservabilityPage /> },
       {
         element: <RequireWorker />,
         children: [
           { path: "/inbox", element: <InboxPage /> },
           { path: "/inbox/:id", element: <WorkerTicketPage /> },
+          // ticket subjects and worker names: workers only, like the inbox
+          { path: "/observability", element: <ObservabilityPage /> },
         ],
       },
       { path: "*", element: <NotFoundPage /> },
