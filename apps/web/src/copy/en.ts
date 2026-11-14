@@ -149,6 +149,40 @@ const en = {
     oldest: (age: string) => `Oldest: ${age}`,
   },
 
+  seo: {
+    mainNav: "Primary navigation",
+    skipToMain: "Skip to main content",
+    ticketActions: "Ticket controls",
+    homeTitle: "Nullbox — Support Ticket Portal | Report a Problem",
+    homeDescription:
+      "Nullbox is a privacy-first customer support and issue tracking portal. Report a problem with or without an account and track updates with a secret capability link.",
+    createdTitle: (n: number) => `Ticket #${n} Received — Nullbox`,
+    createdDescription:
+      "Your support ticket has been created. Bookmark your one-time secret capability link to track replies.",
+    customerTicketTitle: (n?: number) =>
+      n !== undefined ? `Ticket #${n} — Nullbox Support` : "Your Support Ticket — Nullbox",
+    customerTicketDescription:
+      "Private customer support conversation thread accessed via secret capability link.",
+    buyTitle: "Feed the Backlog Beast — Nullbox",
+    buyDescription:
+      "Support the Nullbox queue by feeding the Backlog Beast a ¥500 snack via Stripe Checkout.",
+    thanksTitle: "Thank You for Feeding the Beast — Nullbox",
+    thanksDescription: "Your snack has been delivered to the Nullbox Backlog Beast.",
+    loginTitle: "Worker Sign In — Nullbox Inbox",
+    loginDescription: "Sign in or create a worker account to access the Nullbox support inbox.",
+    ssoTitle: "Completing Single Sign-On — Nullbox",
+    ssoDescription: "Verifying your worker single sign-on session.",
+    inboxTitle: "Worker Inbox & Backlog Beast — Nullbox",
+    inboxDescription:
+      "Internal Nullbox support queue for triaging, replying to, and resolving customer tickets.",
+    workerTicketTitle: (n: number, subject: string) =>
+      `Ticket #${n}: ${subject} — Worker Inbox | Nullbox`,
+    workerTicketDescription:
+      "Worker ticket management view for status updates, internal notes, and customer replies.",
+    notFoundTitle: "404 Not Found — Nullbox",
+    notFoundDescription: "The requested page could not be found in the Nullbox support portal.",
+  },
+
   zero: {
     celebration: "INBOX ZERO!",
     void: "Please enjoy this complimentary void.",

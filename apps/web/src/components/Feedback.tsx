@@ -15,11 +15,11 @@ export function Loading() {
 }
 
 /** Maps API error codes to copy. The server's `message` is for developers only. */
-export function ErrorMessage({ error }: { error: unknown }) {
+export function ErrorMessage({ error, id }: { error: unknown; id?: string }) {
   const copy = useCopy();
   const code = error instanceof ApiError ? error.code : "internal";
   return (
-    <p className={styles.error} role="alert">
+    <p id={id} className={styles.error} role="alert">
       {copy.errors[code]}
     </p>
   );

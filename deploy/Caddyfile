@@ -45,6 +45,14 @@
 		-Server
 	}
 
+	# Private customer ticket links, SSO callback, and worker inbox pages must
+	# not be indexed or leak URLs via the HTTP Referer header.
+	@private path /t/* /inbox /inbox/* /sso/* /thanks
+	header @private {
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex, nofollow"
+	}
+
 	log {
 		output stdout
 		# Never let customer secret links, the admin token or future session

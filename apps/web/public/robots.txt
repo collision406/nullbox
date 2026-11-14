@@ -1,0 +1,66 @@
+# Nullbox robots.txt
+# Canonical origin: https://team-09.fasthacks.cloud
+
+User-agent: *
+Allow: /
+Allow: /buy
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Allow: /.well-known/
+Disallow: /t/
+Disallow: /inbox
+Disallow: /sso/
+Disallow: /thanks
+Disallow: /api/admin/
+
+# Explicit rules for AI & agentic browsing crawlers
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+User-agent: OAI-SearchBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+User-agent: Google-Extended
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /openapi.json
+Disallow: /t/
+Disallow: /inbox
+
+Sitemap: https://team-09.fasthacks.cloud/sitemap.xml

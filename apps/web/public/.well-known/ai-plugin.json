@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Nullbox Support Portal",
+  "name_for_model": "nullbox_support",
+  "description_for_human": "Privacy-first customer support and issue tracking portal. Submit issues and track replies via secret links.",
+  "description_for_model": "Nullbox is a customer support ticket system. Use POST /api/tickets to submit a new support ticket (subject, body, severity p1-p4, optional customer_name and customer_email). Use GET /api/public/tickets/{id} with header X-Ticket-Token to read a customer's ticket thread, or GET /api/tickets and PATCH /api/tickets/{id} with header X-Actor-Name to triage tickets as a support worker. Full documentation is at /llms.txt and /openapi.json.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://team-09.fasthacks.cloud/openapi.json"
+  },
+  "logo_url": "https://team-09.fasthacks.cloud/favicon.svg",
+  "contact_email": "support@team-09.fasthacks.cloud",
+  "legal_info_url": "https://team-09.fasthacks.cloud/llms.txt"
+}

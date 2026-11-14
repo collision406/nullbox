@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { setSession } from "../api/session";
 import { ErrorMessage } from "../components/Feedback";
 import { useCopy } from "../copy/CopyProvider";
+import { usePageMeta } from "../seo/usePageMeta";
 import styles from "./pages.module.css";
 
 /** Where the server sends the browser after SSO. The token arrives in the URL fragment only. */
@@ -12,6 +13,14 @@ export function SsoDonePage() {
   const navigate = useNavigate();
   const started = useRef(false);
   const [failure, setFailure] = useState<{ error?: unknown } | null>(null);
+
+  usePageMeta({
+    title: copy.seo.ssoTitle,
+    description: copy.seo.ssoDescription,
+    canonicalPath: "/sso/done",
+    robots: "noindex, nofollow",
+    referrer: "no-referrer",
+  });
 
   useEffect(() => {
     if (started.current) return;

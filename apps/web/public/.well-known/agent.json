@@ -1,0 +1,29 @@
+{
+  "name": "Nullbox",
+  "url": "https://team-09.fasthacks.cloud/",
+  "description": "Privacy-first customer support and issue tracking application. Supports anonymous or named ticket submission, capability-link thread tracking, and worker inbox triage.",
+  "documentation_url": "https://team-09.fasthacks.cloud/llms.txt",
+  "full_documentation_url": "https://team-09.fasthacks.cloud/llms-full.txt",
+  "openapi_url": "https://team-09.fasthacks.cloud/openapi.json",
+  "mcp_url": "https://team-09.fasthacks.cloud/mcp",
+  "capabilities": {
+    "create_ticket": {
+      "method": "POST",
+      "path": "/api/tickets",
+      "ui_route": "/",
+      "form_selector": "#new-ticket-form"
+    },
+    "view_customer_ticket": {
+      "method": "GET",
+      "path": "/api/public/tickets/{id}",
+      "headers": ["X-Ticket-Token"],
+      "ui_route": "/t/{id}#{access_token}"
+    },
+    "worker_inbox": {
+      "method": "GET",
+      "path": "/api/tickets",
+      "headers": ["X-Actor-Name"],
+      "ui_route": "/inbox"
+    }
+  }
+}

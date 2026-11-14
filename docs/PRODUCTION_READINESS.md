@@ -99,11 +99,11 @@ Positions: **done** / **in progress** / **next** / **backlog**.
   stopped database flips readiness without killing liveness; a dashboard shows
   traffic and errors.
 
-## 6. SEO — 2 pts — backlog
+## 6. SEO — 2 pts — done
 
-- [ ] Lighthouse SEO 100 (1 pt).
-- [ ] Agentic browsing 100 (1 pt).
-- **Where:** `apps/web/index.html`, `apps/web/public/`, route metadata.
+- [x] Lighthouse SEO 100 (1 pt) (`apps/web/index.html`, `apps/web/public/robots.txt`, `apps/web/public/sitemap.xml`, `apps/web/src/seo/usePageMeta.ts`).
+- [x] Agentic browsing 100 (1 pt) (`apps/web/public/llms.txt`, `apps/web/public/llms-full.txt`, `apps/web/public/openapi.json`, `apps/web/public/.well-known/`, `apps/web/src/components/AppShell.tsx`, `apps/web/src/routes/`).
+- **Where:** `apps/web/index.html`, `apps/web/public/`, `apps/web/src/seo/usePageMeta.ts`, `deploy/Caddyfile`, route metadata and ARIA landmarks.
 - **Accept when:** title/description/canonical per route, `robots.txt`, sitemap,
   semantic landmarks, Open Graph, JSON-LD, and the agentic checklist pass.
 

@@ -1,0 +1,453 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Nullbox Support Portal API",
+    "version": "1.0.0",
+    "description": "REST API for Nullbox, a privacy-first customer support and issue tracking system. Customers authenticate per-ticket via X-Ticket-Token; workers identify via X-Actor-Name.",
+    "license": {
+      "name": "Unlicense"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://team-09.fasthacks.cloud",
+      "description": "Production deployment"
+    },
+    {
+      "url": "/",
+      "description": "Current origin"
+    }
+  ],
+  "paths": {
+    "/api/healthz": {
+      "get": {
+        "operationId": "healthz",
+        "summary": "Liveness probe",
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": { "type": "string", "const": "ok" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets": {
+      "post": {
+        "operationId": "createTicket",
+        "summary": "Submit a new support ticket",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTicketRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket created with a one-time secret access token and link",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTicketResponse" }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ApiError" }
+        }
+      },
+      "get": {
+        "operationId": "listTickets",
+        "summary": "List tickets in the worker inbox",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/TicketStatus" },
+            "description": "Filter by status. Omit to return all active tickets (open, in_progress, waiting_on_customer)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Ticket" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/tickets/{id}": {
+      "get": {
+        "operationId": "getCustomerTicket",
+        "summary": "Get a customer ticket thread using its secret token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "X-Ticket-Token",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Secret token from the URL fragment of the customer's access link"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer ticket thread (internal worker notes excluded)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TicketThread" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "403": { "$ref": "#/components/responses/ApiError" },
+          "404": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/public/tickets/{id}/messages": {
+      "post": {
+        "operationId": "replyCustomerTicket",
+        "summary": "Post a customer reply to a ticket",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "X-Ticket-Token",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["body"],
+                "properties": {
+                  "body": { "type": "string", "minLength": 1, "maxLength": 10000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created message",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "403": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/tickets/{id}": {
+      "get": {
+        "operationId": "getWorkerTicket",
+        "summary": "Get full worker ticket thread including internal notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full ticket thread",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TicketThread" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/ApiError" }
+        }
+      },
+      "patch": {
+        "operationId": "updateTicket",
+        "summary": "Update ticket status, severity, or assignee",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "X-Actor-Name",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "description": "Percent-encoded worker display name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTicketRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated ticket",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Ticket" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/api/tickets/{id}/messages": {
+      "post": {
+        "operationId": "addWorkerMessage",
+        "summary": "Add a worker reply or internal note",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "X-Actor-Name",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["body"],
+                "properties": {
+                  "body": { "type": "string", "minLength": 1, "maxLength": 10000 },
+                  "internal": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created worker message or internal note",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/yeet": {
+      "post": {
+        "operationId": "yeetTicket",
+        "summary": "Resolve a ticket immediately",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "X-Actor-Name",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved ticket",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Ticket" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats/backlog": {
+      "get": {
+        "operationId": "getBacklogStats",
+        "summary": "Get open backlog statistics and Backlog Beast mood",
+        "responses": {
+          "200": {
+            "description": "Current backlog statistics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BacklogStats" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Severity": {
+        "type": "string",
+        "enum": ["p1", "p2", "p3", "p4"]
+      },
+      "TicketStatus": {
+        "type": "string",
+        "enum": ["open", "in_progress", "waiting_on_customer", "resolved", "closed"]
+      },
+      "BeastMood": {
+        "type": "string",
+        "enum": ["asleep", "peckish", "grumpy", "kaiju"]
+      },
+      "CreateTicketRequest": {
+        "type": "object",
+        "required": ["subject", "body", "severity"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "body": { "type": "string", "minLength": 1, "maxLength": 10000 },
+          "severity": { "$ref": "#/components/schemas/Severity" },
+          "customer_name": { "type": "string", "maxLength": 100 },
+          "customer_email": { "type": "string", "format": "email", "maxLength": 254 }
+        }
+      },
+      "Ticket": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "subject",
+          "body",
+          "status",
+          "severity",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "number": { "type": "integer" },
+          "subject": { "type": "string" },
+          "body": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/TicketStatus" },
+          "severity": { "$ref": "#/components/schemas/Severity" },
+          "customer_name": { "type": ["string", "null"] },
+          "customer_email": { "type": ["string", "null"] },
+          "assignee_name": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateTicketResponse": {
+        "type": "object",
+        "required": ["ticket", "access_token", "access_link"],
+        "properties": {
+          "ticket": { "$ref": "#/components/schemas/Ticket" },
+          "access_token": { "type": "string" },
+          "access_link": { "type": "string", "format": "uri" }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": ["id", "ticket_id", "author_kind", "body", "internal", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "ticket_id": { "type": "string", "format": "uuid" },
+          "author_kind": { "type": "string", "enum": ["customer", "worker", "system"] },
+          "author_name": { "type": ["string", "null"] },
+          "body": { "type": "string" },
+          "internal": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "TicketThread": {
+        "type": "object",
+        "required": ["ticket", "messages"],
+        "properties": {
+          "ticket": { "$ref": "#/components/schemas/Ticket" },
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Message" }
+          }
+        }
+      },
+      "UpdateTicketRequest": {
+        "type": "object",
+        "properties": {
+          "status": { "$ref": "#/components/schemas/TicketStatus" },
+          "severity": { "$ref": "#/components/schemas/Severity" },
+          "assignee_name": { "type": "string", "maxLength": 100 }
+        }
+      },
+      "BacklogStats": {
+        "type": "object",
+        "required": ["open_count", "beast_mood", "oldest_open_age_secs"],
+        "properties": {
+          "open_count": { "type": "integer", "minimum": 0 },
+          "beast_mood": { "$ref": "#/components/schemas/BeastMood" },
+          "oldest_open_age_secs": { "type": ["integer", "null"] }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "ApiError": {
+        "description": "Structured API error response",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorBody" }
+          }
+        }
+      }
+    }
+  }
+}
