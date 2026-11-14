@@ -8,7 +8,12 @@ const ja = {
   app: {
     name: "Nullbox",
     subtitle: "ヌルボックス ― サポート、ただし虚無。",
-    nav: { submit: "問題を報告", inbox: "対応者の受信箱", feed: "ビーストにエサをあげる" },
+    nav: {
+      submit: "問題を報告",
+      inbox: "対応者の受信箱",
+      feed: "ビーストにエサをあげる",
+      observability: "観測盤",
+    },
     language: "言語",
     footer: "この受信箱の制作において、チケットは一枚も傷ついておりません。",
   },
@@ -226,6 +231,35 @@ const ja = {
 
   time: {
     unknown: "—",
+  },
+
+  observability: {
+    title: "可観測性・虚無テレメトリ",
+    subtitle: "リアルタイムHTTPトラフィック、エラー率、データベース準備状態、アラート経路。",
+    healthy: "正常",
+    degraded: "低下",
+    dbReady: "DB準備完了 (/api/readyz)",
+    dbDown: "DB接続不可",
+    uptime: "稼働時間",
+    dbSize: "SQLite DBサイズ",
+    processRss: "プロセスメモリ (RSS)",
+    requests: "総リクエスト数",
+    errors4xx: "4xx クライアントエラー",
+    errors5xx: "5xx サーバーエラー",
+    latency: "レイテンシ (平均 / P95)",
+    routesTitle: "ルート別HTTPトラフィック・エラー",
+    routeCol: "ルート",
+    requestsCol: "リクエスト数",
+    errorsCol: "エラー (4xx / 5xx)",
+    latencyCol: "平均 / P95 (ms)",
+    noRoutes: "まだリクエストが記録されていません。",
+    eventsTitle: "ドメインイベント・監査ストリーム",
+    noEvents: "まだドメインイベントはありません。",
+    alertsTitle: "死活監視・アラートルーター (/api/alerts)",
+    noAlerts: "アラートなし。虚無は穏やかです。",
+    triggerTestAlert: "テストアラートを発火",
+    rawMetrics: "Prometheus /api/metrics",
+    rawReadyz: "Readiness /api/readyz",
   },
 } satisfies Copy;
 

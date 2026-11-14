@@ -16,6 +16,7 @@ pub mod dto;
 pub mod error;
 pub mod events;
 pub mod http;
+pub mod observability;
 pub mod passwords;
 pub mod payments;
 pub mod policy;
@@ -38,14 +39,17 @@ pub struct AppState {
     pub limits: Arc<http::guard::RateLimits>,
     /// `None` while `STRIPE_API_KEY` is unset.
     pub payments: Option<Arc<payments::Stripe>>,
+    pub pool: sqlx::SqlitePool,
+    pub observability: Arc<observability::ObservabilityState>,
 }
 
 impl AppState {
     pub fn new(pool: sqlx::SqlitePool, config: Config) -> Self {
         let audit = Arc::new(audit::AuditLog::new(pool.clone()));
         let accounts = Arc::new(accounts::Accounts::new(pool.clone(), &config.hibp_api_base));
-        let repo = Arc::new(repo::SqliteTicketRepository::new(pool));
-        let events = Arc::new(audit::AuditEventSink::new(audit.clone()));
+        let repo = Arc::new(repo::SqliteTicketRepository::new(pool.clone()));
+        let observability = Arc::new(observability::ObservabilityState::new());
+        let events = Arc::new(audit::AuditEventSink::new(audit.clone(), observability.clone()));
         Self {
             tickets: Arc::new(service::TicketService::new(repo, events)),
             limits: Arc::new(http::guard::RateLimits::new(&config)),
@@ -56,6 +60,8 @@ impl AppState {
             config: Arc::new(config),
             audit,
             accounts,
+            pool,
+            observability,
         }
     }
 }

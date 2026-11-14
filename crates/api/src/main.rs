@@ -1,13 +1,16 @@
 use anyhow::Context;
-use nullbox_api::{AppState, Config, db, http};
+use nullbox_api::{AppState, Config, db, http, observability};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,tower_http=debug".into()))
-        .init();
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,tower_http=debug".into());
+    if std::env::var("LOG_FORMAT").is_ok_and(|v| v.eq_ignore_ascii_case("pretty")) {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).event_format(observability::JsonLogFormatter).init();
+    }
     std::panic::set_hook(Box::new(|info| {
         tracing::error!(target: "EXISTENTIAL", %info, "the server has stared into the void, and the void panicked back");
     }));

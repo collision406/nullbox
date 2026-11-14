@@ -84,14 +84,15 @@ Positions: **done** / **in progress** / **next** / **backlog**.
   live secret, the port scan is clean, and every worker/admin write produces an
   audit record.
 
-## 5. Observability — 2 pts — backlog
+## 5. Observability — 2 pts — done
 
-- [ ] Structured JSON logs with request IDs and latency.
-- [ ] `/readyz` that checks the database, separate from `/healthz`.
-- [ ] Metrics (request count/latency/errors, DB size, process) scraped or pushed.
-- [ ] External uptime check and an alert route.
+- [x] Structured JSON logs with request IDs and latency (`crates/api/src/observability.rs`, `crates/api/src/http/mod.rs`, `deploy/Caddyfile`).
+- [x] `/readyz` that checks the database, separate from `/healthz` (`crates/api/src/http/utility.rs`).
+- [x] Metrics (request count/latency/errors, DB size, process) scraped or pushed (`/api/metrics`, `/api/observability/summary`, `/observability`).
+- [x] External uptime check and an alert route (`/api/alerts`, `/api/alerts/webhook`, `deploy/uptime-check.sh`).
 - **Where:** `middleware()` in `crates/api/src/http/mod.rs`, `main.rs`,
-  `crates/api/src/events.rs`; Caddy already logs JSON.
+  `crates/api/src/audit.rs`, `crates/api/src/observability.rs`,
+  `apps/web/src/routes/worker/ObservabilityPage.tsx`; Caddy logs JSON and propagates `X-Request-Id`.
 - **Accept when:** one request can be followed from Caddy through the API; a
   stopped database flips readiness without killing liveness; a dashboard shows
   traffic and errors.

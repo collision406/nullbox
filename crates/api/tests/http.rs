@@ -3,9 +3,13 @@
 
 mod common;
 
-use axum::http::StatusCode;
-use common::{ADMIN_TOKEN, app, send, worker};
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use common::{ADMIN_TOKEN, app, config, send, send_full, worker};
+use http_body_util::BodyExt;
+use nullbox_api::{AppState, db, http};
 use serde_json::json;
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn customer_and_worker_round_trip() {
@@ -116,4 +120,96 @@ async fn admin_export_needs_the_admin_token() {
     let (status, tickets) = send(&app, "GET", "/api/admin/export", &admin, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tickets[0]["customer_email"], "a@example.com");
+}
+
+#[tokio::test]
+async fn request_id_is_propagated_and_generated() {
+    let app = app().await;
+
+    let (status, headers, _) =
+        send_full(&app, "GET", "/api/healthz", &[("x-request-id", "caddy-req-12345")], None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get("x-request-id").unwrap(), "caddy-req-12345");
+
+    let (status, headers, _) = send_full(&app, "GET", "/api/healthz", &[], None).await;
+    assert_eq!(status, StatusCode::OK);
+    let generated = headers.get("x-request-id").unwrap().to_str().unwrap();
+    assert!(!generated.is_empty());
+}
+
+#[tokio::test]
+async fn stopped_database_flips_readiness_without_killing_liveness() {
+    let pool = db::connect_in_memory().await.expect("in-memory db");
+    let app = http::router(AppState::new(pool.clone(), config()));
+
+    let (status, ready) = send(&app, "GET", "/api/readyz", &[], None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ready["status"], "ok");
+    assert_eq!(ready["db"], "ok");
+
+    // Stop the database pool: readiness must flip to 503 while liveness stays 200.
+    pool.close().await;
+
+    let (ready_status, ready_err) = send(&app, "GET", "/api/readyz", &[], None).await;
+    assert_eq!((ready_status, &ready_err["code"]), (StatusCode::SERVICE_UNAVAILABLE, &json!("service_unavailable")));
+
+    let (live_status, live_body) = send(&app, "GET", "/api/healthz", &[], None).await;
+    assert_eq!((live_status, &live_body["status"]), (StatusCode::OK, &json!("ok")));
+
+    let (alert_status, alerts) = send(&app, "GET", "/api/alerts", &[], None).await;
+    assert_eq!(alert_status, StatusCode::OK);
+    assert!(alerts.as_array().unwrap().iter().any(|a| a["source"] == "readyz"));
+}
+
+#[tokio::test]
+async fn metrics_and_observability_summary_track_traffic_errors_and_alerts() {
+    let app = app().await;
+
+    send(
+        &app,
+        "POST",
+        "/api/tickets",
+        &[],
+        Some(json!({ "subject": "Metrics test", "body": "Body", "severity": "p2" })),
+    )
+    .await;
+    send(&app, "GET", "/api/teapot", &[], None).await;
+
+    let (alert_status, alert) = send(
+        &app,
+        "POST",
+        "/api/alerts/webhook",
+        &[],
+        Some(json!({
+            "title": "Synthetic probe warning",
+            "message": "High latency from Tokyo probe",
+            "severity": "warning",
+            "source": "uptime-check"
+        })),
+    )
+    .await;
+    assert_eq!(alert_status, StatusCode::CREATED);
+    assert_eq!(alert["source"], "uptime-check");
+
+    let (status, summary) = send(&app, "GET", "/api/observability/summary", &[], None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(summary["db_ready"], true);
+    assert!(summary["db_size_bytes"].as_u64().unwrap() > 0);
+    assert!(summary["process_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(summary["total_requests"].as_u64().unwrap() >= 3);
+    assert!(summary["total_errors_4xx"].as_u64().unwrap() >= 1);
+    assert_eq!(summary["domain_events"]["ticket_created"], 1);
+    assert!(!summary["recent_events"].as_array().unwrap().is_empty());
+    assert!(!summary["recent_alerts"].as_array().unwrap().is_empty());
+
+    let req = Request::builder().method("GET").uri("/api/metrics").body(Body::empty()).unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let text = String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+    assert!(text.contains("nullbox_http_requests_total"));
+    assert!(text.contains("nullbox_http_errors_total"));
+    assert!(text.contains("nullbox_http_request_duration_seconds_bucket"));
+    assert!(text.contains("nullbox_db_size_bytes"));
+    assert!(text.contains("nullbox_process_resident_memory_bytes"));
+    assert!(text.contains("nullbox_domain_events_total{kind=\"ticket_created\"} 1"));
 }

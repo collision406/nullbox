@@ -8,8 +8,12 @@
 	encode zstd gzip
 
 	# The API always lives under /api and keeps its own /api prefix.
+	# Forward or assign X-Request-Id ({http.request.uuid}) so a single request
+	# can be followed from Caddy's JSON access log through nullbox-api's JSON log.
 	handle /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			header_up ?X-Request-Id {http.request.uuid}
+		}
 	}
 
 	# React Router owns the rest of the URL space; unknown paths get the SPA.

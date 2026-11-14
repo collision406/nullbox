@@ -109,17 +109,19 @@ impl AuditLog {
 /// Writes every domain event to the audit log (and still logs it, like before).
 pub struct AuditEventSink {
     audit: Arc<AuditLog>,
+    observability: Arc<crate::observability::ObservabilityState>,
 }
 
 impl AuditEventSink {
-    pub fn new(audit: Arc<AuditLog>) -> Self {
-        Self { audit }
+    pub fn new(audit: Arc<AuditLog>, observability: Arc<crate::observability::ObservabilityState>) -> Self {
+        Self { audit, observability }
     }
 }
 
 impl EventSink for AuditEventSink {
     fn emit(&self, event: DomainEvent) {
         let entry = entry_for(&event);
+        self.observability.record_domain_event(&event);
         TracingEventSink.emit(event);
         // `emit` is synchronous and called after the write succeeded, so the audit
         // insert runs in the background instead of delaying the response.

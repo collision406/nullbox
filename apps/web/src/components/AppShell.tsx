@@ -34,6 +34,7 @@ export function AppShell() {
           </NavLink>
           <NavLink to="/buy">{copy.app.nav.feed}</NavLink>
           <NavLink to="/inbox">{copy.app.nav.inbox}</NavLink>
+          <NavLink to="/observability">{copy.app.nav.observability}</NavLink>
         </nav>
         <div className={styles.tools}>
           {pathname.startsWith("/inbox") && <WorkerSession />}
