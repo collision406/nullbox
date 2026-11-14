@@ -30,6 +30,16 @@
 
 	log {
 		output stdout
-		format json
+		# Never let customer secret links, the admin token or future session
+		# cookies reach the log. The path is enough to identify the request.
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Ticket-Token delete
+				request>headers>X-Admin-Token delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
 	}
 }

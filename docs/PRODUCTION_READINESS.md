@@ -12,10 +12,14 @@ Positions: **done** / **next** / **backlog**.
 - [x] Caddy terminates TLS and serves SPA + `/api` on one origin (`deploy/Caddyfile`).
 - [x] Non-root API, read-only root filesystem, healthcheck, restart policy.
 - [x] Runbook for first deploy, updates and rollback (`deploy/README.md`).
-- [ ] Site reachable at `https://team-09.fasthacks.cloud/` with a valid certificate.
-- [ ] `curl -fsS https://team-09.fasthacks.cloud/api/healthz` returns `{"status":"ok"}`.
+- [x] Site reachable at `https://team-09.fasthacks.cloud/` with a valid certificate.
+- [x] `curl -fsS https://team-09.fasthacks.cloud/api/healthz` returns `{"status":"ok"}`.
+- [ ] The event's Deploy check has run and gone green.
 - **Accept when:** the event's Deploy check goes green and the page loads a ticket
   end to end.
+- **Verified on 2026-11-14:** Let's Encrypt certificate, HTTP->HTTPS redirect,
+  ticket create/read/stats round trip, leaked admin token 403, fresh token 200,
+  only 22/80/443 reachable, Caddy logs redact token headers.
 
 ## 2. CI/CD — 4 pts — next
 
@@ -61,8 +65,9 @@ Positions: **done** / **next** / **backlog**.
   then purge it from history (or recreate the fork) and add secret scanning +
   push protection. Decide which the team wants before rewriting history.
 - **Customer links:** keep the token in the URL fragment (already done), never log
-  it, add `Referrer-Policy: no-referrer` on ticket pages, consider expiry and a
-  "revoke link" action.
+  it (Caddy redacts `X-Ticket-Token`, `X-Admin-Token`, `Authorization` and
+  `Cookie`), add `Referrer-Policy: no-referrer` on ticket pages, consider expiry
+  and a "revoke link" action.
 - **Firewall:** only 22/80/443 inbound; remove the public debug console; verify
   from outside the host, not just with `ss`.
 - **Audit log:** implement an append-only sink behind `EventSink` recording
