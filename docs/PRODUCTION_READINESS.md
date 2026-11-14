@@ -4,7 +4,7 @@ The event's team page scores the deployment in upgrade groups. Later groups stay
 locked until the earlier ones pass, so this is also the suggested order of work.
 Points are the event's; the acceptance criteria are ours.
 
-Positions: **done** / **next** / **backlog**.
+Positions: **done** / **in progress** / **next** / **backlog**.
 
 ## 1. Deploy — 1 pt — next
 
@@ -20,20 +20,27 @@ Positions: **done** / **next** / **backlog**.
 - **Verified on 2026-11-14:** Let's Encrypt certificate, HTTP->HTTPS redirect,
   ticket create/read/stats round trip, leaked admin token 403, fresh token 200,
   only 22/80/443 reachable, Caddy logs redact token headers.
+- **Model:** `main` is the deployment branch. The server only checks out `main`;
+  develop elsewhere, never on the server.
 
-## 2. CI/CD — 4 pts — next
+## 2. CI/CD — 4 pts — in progress
 
-- [ ] Automatic deployment on merge to `development` (2 pts).
-- [ ] Build cache for Rust and pnpm (1 pt).
-- [ ] Tests run automatically (1 pt).
-- **Where:** `.github/workflows/ci.yml` and a deploy job. `.github/workflows/` is
-  outside the agent's permission; a human adds the workflow (content can be
-  proposed in the PR).
+- [x] Workflow templates for CI and deploy (`deploy/github-actions/`).
+- [x] Server-side deploy command with a build + health gate (`deploy/remote-deploy.sh`).
+- [x] Restricted CI key installer (`deploy/authorize-ci-key.sh`).
+- [ ] Human copies the templates into `.github/workflows/`.
+- [ ] `DEPLOY_SSH_KEY` secret added and Actions enabled on the fork.
+- [ ] First automatic deploy on a push to `main`.
+- **Model:** `main` is the only deployed branch; `development` is integration;
+  the server checkout at `/srv/nullbox` is a deployment target and is never
+  developed on.
+- **Where:** `.github/workflows/` is outside the agent's permission; a human adds
+  the two files from `deploy/github-actions/`.
 - **Accept when:** a PR runs fmt, clippy `-D warnings`, `cargo test`, `pnpm lint`,
-  `pnpm test`, `pnpm build`; a push to `development` deploys; a warm run restores
-  caches; a deliberately failing test blocks the merge.
-- **Note:** decide whether Actions may run in this public fork, and whether the
-  deploy job uses a server SSH key or a pull-based agent.
+  `pnpm test`, `pnpm build`; a push to `main` updates the site; a warm run
+  restores the caches; a deliberately failing test blocks the merge.
+- **Cache:** Rust (`Swatinem/rust-cache`) and pnpm (`setup-node` cache) in CI;
+  Docker BuildKit cache mounts on the server for the image build.
 
 ## 3. Login — 5 pts — backlog
 

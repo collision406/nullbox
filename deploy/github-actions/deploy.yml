@@ -1,0 +1,41 @@
+# Copy to .github/workflows/deploy.yml. A human must do this: the agent token
+# is not allowed to edit workflow files.
+#
+# main is the only deployed branch. The deploy key is restricted on the server
+# to /usr/local/bin/nullbox-deploy (see deploy/authorize-ci-key.sh), so this
+# job can deploy but cannot run anything else.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to team-09
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: team-09.fasthacks.cloud
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            /usr/local/bin/nullbox-deploy
+
+      - name: Verify the live site
+        run: |
+          set -euo pipefail
+          curl -fsS https://team-09.fasthacks.cloud/api/healthz
+          curl -fsSI https://team-09.fasthacks.cloud/ | head -1
