@@ -4,13 +4,11 @@ use axum::Json;
 use axum::extract::{FromRequest, FromRequestParts, OriginalUri, Path, Query};
 use axum::http::header;
 use axum::http::request::Parts;
-use percent_encoding::percent_decode_str;
 
 use super::guard::client_ip;
 use crate::audit::AuditEntry;
 use crate::{ApiError, AppState, token};
 
-pub const ACTOR_HEADER: &str = "x-actor-name";
 pub const ADMIN_TOKEN_HEADER: &str = "x-admin-token";
 pub const TICKET_TOKEN_HEADER: &str = "x-ticket-token";
 
@@ -35,37 +33,47 @@ fn refusal_detail(parts: &Parts, reason: &str) -> String {
     detail
 }
 
-/// The worker making the request.
+/// The worker making the request: the account behind the session token in
+/// `Authorization: Bearer <token>`. Anything else (no header, an unknown or expired token,
+/// the retired `X-Actor-Name` header) is a 401, and is written to the audit log.
 ///
-/// MVP: trusts the `X-Actor-Name` header (percent-encoded, so Japanese names
-/// survive HTTP headers), which the frontend fills from a name picker.
-/// Anyone can claim to be anyone. To add SSO/JWT, replace only this extractor.
-///
-/// It gets the `AppState`, so a real login can look up a session or a user here,
-/// and a refused request can be written to an audit log before the 401 goes out.
+/// This is the auth seam: SSO and password sign-in both end in a session token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Actor {
     pub name: String,
+}
+
+/// `Authorization: Bearer <token>`, without checking the token.
+pub struct BearerToken(pub String);
+
+fn bearer_token(parts: &Parts) -> Option<String> {
+    let value = parts.headers.get(header::AUTHORIZATION)?.to_str().ok()?;
+    let (scheme, token) = value.split_once(' ')?;
+    (scheme.eq_ignore_ascii_case("bearer") && !token.trim().is_empty()).then(|| token.trim().to_owned())
+}
+
+impl FromRequestParts<AppState> for BearerToken {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+        bearer_token(parts).map(BearerToken).ok_or(ApiError::MissingActor)
+    }
 }
 
 impl FromRequestParts<AppState> for Actor {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
-        let name = parts
-            .headers
-            .get(ACTOR_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|raw| percent_decode_str(raw).decode_utf8().ok().map(|name| name.trim().to_owned()))
-            .filter(|name| !name.is_empty() && name.chars().count() <= 100);
-        if let Some(name) = name {
-            return Ok(Actor { name });
-        }
-        // A refused worker request is written to the audit log before the 401 goes out.
+        let reason = match bearer_token(parts) {
+            None => "no session token",
+            Some(session_token) => match state.accounts.name_for_token(&session_token).await {
+                Ok(Some(name)) => return Ok(Actor { name }),
+                Ok(None) => "unknown or expired session token",
+                Err(error) => return Err(ApiError::WorksOnMyMachine(error.to_string())),
+            },
+        };
         let ip = client_ip(&parts.headers, &parts.extensions, state.config.trust_proxy);
-        let entry = AuditEntry::new("worker_access_denied")
-            .client_ip(ip)
-            .detail(refusal_detail(parts, "no valid worker identity"));
+        let entry = AuditEntry::new("worker_access_denied").client_ip(ip).detail(refusal_detail(parts, reason));
         state.audit.record(entry).await;
         Err(ApiError::MissingActor)
     }

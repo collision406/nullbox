@@ -10,7 +10,30 @@ use serde_json::Value;
 use tower::ServiceExt;
 
 pub const ADMIN_TOKEN: &str = "test-admin-token-0123456789abcdefghij";
-pub const WORKER: (&str, &str) = ("x-actor-name", "%E5%B1%B1%E7%94%B0"); // 山田, percent-encoded
+/// Strong enough for the password policy: long, not a common word, not in a breach list.
+pub const PASSWORD: &str = "T7#pLm9!vQ2z-correct";
+
+/// A signed-up worker: send `header()` with a request to act as them.
+pub struct Worker {
+    pub name: String,
+    pub token: String,
+    auth: String,
+}
+
+impl Worker {
+    pub fn header(&self) -> (&str, &str) {
+        ("authorization", self.auth.as_str())
+    }
+}
+
+/// Creates an account through the API and returns its session.
+pub async fn worker(app: &Router, name: &str) -> Worker {
+    let body = serde_json::json!({ "username": name, "password": PASSWORD });
+    let (status, session) = send(app, "POST", "/api/auth/signup", &[], Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{session}");
+    let token = session["token"].as_str().unwrap().to_owned();
+    Worker { name: session["name"].as_str().unwrap().to_owned(), auth: format!("Bearer {token}"), token }
+}
 
 /// Local defaults plus an admin token. Rate limits are off unless a test turns them on.
 pub fn config() -> Config {
@@ -18,6 +41,9 @@ pub fn config() -> Config {
         admin_token: Some(ADMIN_TOKEN.into()),
         rate_limit_per_minute: 0,
         rate_limit_create_per_minute: 0,
+        rate_limit_auth_per_minute: 0,
+        // Nothing listens here: the breach check fails open, so tests never reach the internet.
+        hibp_api_base: "http://127.0.0.1:1".into(),
         ..Config::local()
     }
 }

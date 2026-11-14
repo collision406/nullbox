@@ -8,7 +8,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::routing::get;
-use common::{ADMIN_TOKEN, WORKER, app, app_with, config, create_ticket, send, send_full};
+use common::{ADMIN_TOKEN, app, app_with, config, create_ticket, send, send_full, worker};
 use nullbox_api::http::guard;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -56,6 +56,7 @@ async fn a_customer_token_only_opens_its_own_ticket() {
     let app = app().await;
     let (alice_id, alice_token) = create_ticket(&app, "Alice's secret").await;
     let (bob_id, bob_token) = create_ticket(&app, "Bob's secret").await;
+    let w = worker(&app, "yamada").await;
 
     // Alice's token on Bob's ticket: looks exactly like a ticket that doesn't exist.
     let (status, body) =
@@ -73,7 +74,7 @@ async fn a_customer_token_only_opens_its_own_ticket() {
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let (_, thread) = send(&app, "GET", &format!("/api/tickets/{bob_id}"), &[WORKER], None).await;
+    let (_, thread) = send(&app, "GET", &format!("/api/tickets/{bob_id}"), &[w.header()], None).await;
     assert_eq!(thread["messages"], json!([]), "nothing was added to Bob's ticket");
 
     // Both tokens still open their own ticket.
@@ -106,7 +107,8 @@ async fn ticket_creation_is_rate_limited_per_client() {
     assert!((1..=60).contains(&retry_after));
 
     // The refused request stored nothing, and another client is not affected.
-    let (_, inbox) = send(&app, "GET", "/api/tickets", &[WORKER, from_ip("203.0.113.1")[0]], None).await;
+    let w = worker(&app, "yamada").await;
+    let (_, inbox) = send(&app, "GET", "/api/tickets", &[w.header(), from_ip("203.0.113.1")[0]], None).await;
     assert_eq!(inbox.as_array().unwrap().len(), 3);
     let (status, _) = send(&app, "POST", "/api/tickets", &from_ip("203.0.113.2"), ticket()).await;
     assert_eq!(status, StatusCode::CREATED);
@@ -232,7 +234,9 @@ async fn admin_access_is_audited_granted_or_refused() {
 #[tokio::test]
 async fn the_audit_log_itself_needs_the_admin_token() {
     let app = app().await;
-    for headers in [&[][..], &[("x-admin-token", "nope")][..], &[WORKER][..]] {
+    let w = worker(&app, "yamada").await;
+    // A worker's session is not an admin token.
+    for headers in [&[][..], &[("x-admin-token", "nope")][..], &[w.header()][..]] {
         let (status, body) = send(&app, "GET", "/api/admin/audit", headers, None).await;
         assert_eq!((status, &body["code"]), (StatusCode::FORBIDDEN, &json!("forbidden")));
     }
@@ -241,8 +245,9 @@ async fn the_audit_log_itself_needs_the_admin_token() {
 #[tokio::test]
 async fn ticket_changes_are_audited_with_their_actor() {
     let app = app().await;
+    let w = worker(&app, "山田太郎").await;
     let (id, _) = create_ticket(&app, "Yeet me").await;
-    let (status, _) = send(&app, "POST", &format!("/api/tickets/{id}/yeet"), &[WORKER], None).await;
+    let (status, _) = send(&app, "POST", &format!("/api/tickets/{id}/yeet"), &[w.header()], None).await;
     assert_eq!(status, StatusCode::OK);
 
     // Domain events are written in the background, so give them a moment.
@@ -255,7 +260,7 @@ async fn ticket_changes_are_audited_with_their_actor() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     let yeeted = log.iter().find(|entry| entry["kind"] == "ticket_yeeted").expect("ticket_yeeted in the audit log");
-    assert_eq!((&yeeted["actor"], &yeeted["ticket_id"]), (&json!("山田"), &json!(id)));
+    assert_eq!((&yeeted["actor"], &yeeted["ticket_id"]), (&json!(w.name), &json!(id)));
     assert!(log.iter().any(|entry| entry["kind"] == "ticket_created" && entry["ticket_id"] == json!(id)));
 }
 

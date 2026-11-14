@@ -68,6 +68,55 @@ pub struct UpdateTicketRequest {
     pub assignee_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize, TS)]
+#[ts(export)]
+pub struct SignupRequest {
+    pub username: String,
+    pub password: String,
+    /// Only needed when the server was started with `SIGNUP_INVITE_CODE`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub invite_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// A session: send `token` as `Authorization: Bearer <token>`. Shown once.
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct AuthResponse {
+    pub token: String,
+    pub name: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct Me {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct SsoProvider {
+    /// What the button says, e.g. "Google".
+    pub name: String,
+    /// Where the browser goes to start signing in, e.g. `/api/auth/sso/login`.
+    pub login_url: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export)]
+pub struct AuthConfig {
+    pub invite_required: bool,
+    pub sso: Option<SsoProvider>,
+}
+
 /// Where to send the buyer: a Stripe-hosted checkout page.
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]

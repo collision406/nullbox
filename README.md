@@ -88,11 +88,16 @@ stable and shared with TypeScript; `message` is English and for developers only.
 | GET | `/stats/backlog` | `{ open_count, beast_mood, oldest_open_age_secs }` |
 | GET | `/admin/export` | every ticket, for the CEO's spreadsheet; header `X-Admin-Token` |
 | GET | `/admin/audit?limit=` | the audit log, newest first; header `X-Admin-Token` |
+| GET | `/auth/config` | `{ invite_required, sso }`, for the login screen |
+| POST | `/auth/signup` | `{ username, password, invite_code? }`, returns a session `{ token, name, expires_at }` |
+| POST | `/auth/login` | `{ username, password }`, same answer |
+| POST | `/auth/logout` | ends the session on the server |
+| GET | `/me` | `{ name }` of the logged-in worker |
 | POST | `/checkout` | open a Stripe Checkout Session (test mode); returns `{ url }` of the Stripe-hosted page |
 | GET | `/healthz` | liveness |
 | GET | `/teapot` | 418, as specified by RFC 2324 |
 
-Worker endpoints are **unprotected**: `X-Actor-Name` is whatever the client says it is.
+Worker endpoints need `Authorization: Bearer <session token>` (see [Accounts](#accounts)); the old `X-Actor-Name` header is ignored.
 
 ## Configuration
 
@@ -129,8 +134,28 @@ fixed in `crates/api/src/payments.rs`: the request has no body to tamper with.
 
 Tests: `crates/api/tests/payments.rs`, against a fake Stripe on a local port.
 
-One test per item lives in `crates/api/tests/security.rs`. Still open: worker endpoints trust
-`X-Actor-Name` until a login replaces the `Actor` extractor.
+One test per item lives in `crates/api/tests/security.rs`.
+
+## Accounts
+
+Workers sign up and log in with a username and a password; every reply carries the account's name.
+
+- **Closed by default**: every worker endpoint answers `401` without a valid session. A session token
+  (256 random bits, valid 12 hours) comes from sign-up or log-in and is stored hashed; logging out
+  deletes the session on the server, so the token stops working at once.
+- **Passwords** are hashed with Argon2id and never stored, logged or returned. They need at least
+  10 characters, must not be a common password or contain the username, and must not appear in a known
+  breach (checked with Have I Been Pwned's range API: only 5 characters of the SHA-1 leave the server).
+  If that service is down the local rules still apply and sign-up goes on.
+- **No account enumeration**: a wrong password and an unknown user get the same answer.
+- **Guessing is cut off**: 10 sign-ups and log-ins a minute per client IP (`RATE_LIMIT_AUTH_PER_MINUTE`).
+- **Sign-up is open by default**, which means anyone can read the inbox. Set `SIGNUP_INVITE_CODE`
+  (8+ characters) to require a code.
+- **Audit**: `account_created`, `login_succeeded`, `login_failed`, `logout` and every refused worker
+  request are in the audit log, without passwords or tokens.
+- The SPA keeps the session token in `sessionStorage` (it ends with the tab).
+
+Tests: `crates/api/tests/auth.rs` and `crates/api/src/accounts.rs`.
 
 Web, at build time: `VITE_API_BASE_URL`, the origin of the API without `/api`. Unset, the bundle calls
 `http://localhost:3000`, which is only right on your laptop. For a deployment, set it to your site's
