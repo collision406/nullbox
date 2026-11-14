@@ -11,8 +11,10 @@ use crate::{ApiError, AppState};
 /// Every ticket, with customer names and emails. Guarded by `X-Admin-Token`, which
 /// must match `ADMIN_TOKEN` (see `config.rs`).
 pub async fn export(State(state): State<AppState>, headers: HeaderMap) -> Result<Json<Vec<Ticket>>, ApiError> {
+    let configured = state.config.admin_token.as_str();
     let token = headers.get(ADMIN_TOKEN_HEADER).and_then(|value| value.to_str().ok());
-    if token != Some(state.config.admin_token.as_str()) {
+    // An empty setting means "not configured", not "any empty header wins".
+    if configured.is_empty() || token != Some(configured) {
         return Err(ApiError::Forbidden);
     }
     Ok(Json(state.tickets.export().await?))

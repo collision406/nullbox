@@ -1,0 +1,57 @@
+name: nullbox
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    image: nullbox-api:local
+    env_file:
+      - .env
+    environment:
+      # Inside the container the API always listens on the private network and
+      # keeps its database on the named volume, whatever the host .env says.
+      BIND_ADDR: 0.0.0.0:3000
+      DATABASE_URL: sqlite://data/nullbox.db
+    volumes:
+      - nullbox-data:/app/data
+    expose:
+      - "3000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/healthz"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      target: web
+    image: nullbox-web:local
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  nullbox-data:
+  caddy-data:
+  caddy-config:

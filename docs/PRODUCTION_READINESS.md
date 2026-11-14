@@ -1,0 +1,137 @@
+# Production readiness
+
+The event's team page scores the deployment in upgrade groups. Later groups stay
+locked until the earlier ones pass, so this is also the suggested order of work.
+Points are the event's; the acceptance criteria are ours.
+
+Positions: **done** / **next** / **backlog**.
+
+## 1. Deploy — 1 pt — next
+
+- [x] One-command containers for the API and the SPA (`Dockerfile`, `docker-compose.yml`).
+- [x] Caddy terminates TLS and serves SPA + `/api` on one origin (`deploy/Caddyfile`).
+- [x] Non-root API, read-only root filesystem, healthcheck, restart policy.
+- [x] Runbook for first deploy, updates and rollback (`deploy/README.md`).
+- [ ] Site reachable at `https://team-09.fasthacks.cloud/` with a valid certificate.
+- [ ] `curl -fsS https://team-09.fasthacks.cloud/api/healthz` returns `{"status":"ok"}`.
+- **Accept when:** the event's Deploy check goes green and the page loads a ticket
+  end to end.
+
+## 2. CI/CD — 4 pts — next
+
+- [ ] Automatic deployment on merge to `development` (2 pts).
+- [ ] Build cache for Rust and pnpm (1 pt).
+- [ ] Tests run automatically (1 pt).
+- **Where:** `.github/workflows/ci.yml` and a deploy job. `.github/workflows/` is
+  outside the agent's permission; a human adds the workflow (content can be
+  proposed in the PR).
+- **Accept when:** a PR runs fmt, clippy `-D warnings`, `cargo test`, `pnpm lint`,
+  `pnpm test`, `pnpm build`; a push to `development` deploys; a warm run restores
+  caches; a deliberately failing test blocks the merge.
+- **Note:** decide whether Actions may run in this public fork, and whether the
+  deploy job uses a server SSH key or a pull-based agent.
+
+## 3. Login — 5 pts — backlog
+
+- [ ] Members-only page stays closed (1 pt).
+- [ ] Username + password sign-up and sign-in (2 pts).
+- [ ] Single sign-on (2 pts).
+- **Where:** `Actor` extractor (`crates/api/src/http/extract.rs`), `policy::can`
+  (`crates/api/src/policy.rs`), `authHeaders()` (`apps/web/src/api/client.ts`),
+  `cors()` (`crates/api/src/http/mod.rs`).
+- **Proposal:** users/sessions tables in SQLite, argon2id hashes, HttpOnly +
+  Secure + SameSite=Lax cookies, origin/CSRF check on writes, logout that deletes
+  the session. SSO via an OIDC provider (GitHub or a generic issuer) with the same
+  session afterwards. Roles: `admin` (export, user management), `agent` (inbox).
+- **Accept when:** `/inbox` without a session redirects to login; API worker
+  routes return 401; `X-Actor-Name` no longer grants anything; a session can be
+  revoked from the server; admin export requires the `admin` role; login is
+  rate-limited.
+
+## 4. Security — 6 pts — backlog
+
+- [ ] Rotate the leaked admin secret (1 pt).
+- [ ] Get the secret out of git history (1 pt).
+- [ ] Customer links stay secret (1 pt).
+- [ ] Firewall (1 pt).
+- [ ] Audit log (2 pts).
+- **Rotate:** set a fresh `ADMIN_TOKEN` in the server `.env`; the code no longer
+  falls back to a default, and an empty value disables the export endpoint.
+- **History:** the old value is in a public commit. Rotating makes it useless;
+  then purge it from history (or recreate the fork) and add secret scanning +
+  push protection. Decide which the team wants before rewriting history.
+- **Customer links:** keep the token in the URL fragment (already done), never log
+  it, add `Referrer-Policy: no-referrer` on ticket pages, consider expiry and a
+  "revoke link" action.
+- **Firewall:** only 22/80/443 inbound; remove the public debug console; verify
+  from outside the host, not just with `ss`.
+- **Audit log:** implement an append-only sink behind `EventSink` recording
+  actor, action, resource, outcome, timestamp, source address; include refused
+  requests from the `Actor` extractor; expose to admins only.
+- **Accept when:** the old token is rejected, a fresh one works, history has no
+  live secret, the port scan is clean, and every worker/admin write produces an
+  audit record.
+
+## 5. Observability — 2 pts — backlog
+
+- [ ] Structured JSON logs with request IDs and latency.
+- [ ] `/readyz` that checks the database, separate from `/healthz`.
+- [ ] Metrics (request count/latency/errors, DB size, process) scraped or pushed.
+- [ ] External uptime check and an alert route.
+- **Where:** `middleware()` in `crates/api/src/http/mod.rs`, `main.rs`,
+  `crates/api/src/events.rs`; Caddy already logs JSON.
+- **Accept when:** one request can be followed from Caddy through the API; a
+  stopped database flips readiness without killing liveness; a dashboard shows
+  traffic and errors.
+
+## 6. SEO — 2 pts — backlog
+
+- [ ] Lighthouse SEO 100 (1 pt).
+- [ ] Agentic browsing 100 (1 pt).
+- **Where:** `apps/web/index.html`, `apps/web/public/`, route metadata.
+- **Accept when:** title/description/canonical per route, `robots.txt`, sitemap,
+  semantic landmarks, Open Graph, JSON-LD, and the agentic checklist pass.
+
+## 7. Payments — 3 pts — backlog
+
+- [ ] Provider integration, webhook signature verification, idempotent fulfilment,
+  a customer-facing page, keys in config only.
+- **Where:** a route next to the others in `crates/api/src/http/mod.rs`, a page in
+  `apps/web/src/router.tsx`, keys in `Config`.
+- **Accept when:** test-mode purchase upgrades a ticket/account, a replayed
+  webhook is a no-op, and no key is in the bundle.
+
+## 8. AI — 3 pts — backlog
+
+- [ ] MCP server at `/mcp` exposing ticket tools (2 pts).
+- [ ] An agent works a ticket end to end (1 pt).
+- **Where:** a service next to the `/api` nest in `router()`; tools call
+  `TicketService` like the worker handlers do.
+- **Accept when:** an MCP client lists tools, reads a ticket, posts a reply, and
+  the action appears in the audit log under the agent's identity.
+
+## Cross-cutting work not scored directly
+
+- [ ] **Backups + restore drill.** SQLite WAL on the `nullbox-data` volume;
+  Litestream or `sqlite3 .backup` to off-box storage, retention, and one
+  successful restore into a scratch container. *Production-critical.*
+- [ ] **Graceful SIGTERM.** `main.rs` waits for Ctrl-C only; add SIGTERM so
+  container stops drain in-flight requests and close SQLite cleanly.
+- [ ] **Abuse limits.** Rate-limit ticket creation and replies, cap request body
+  size, add IP allow/deny for admin.
+- [ ] **Dependency and secret scanning.** `cargo audit`, `pnpm audit`, Dependabot,
+  secret scanning, SBOM on release.
+- [ ] **Migration safety.** Backup before migrate, forward-only, tested on a copy
+  of production data.
+- [ ] **Load test.** k6 or similar against create/read/reply; record the single-
+  node ceiling.
+- [ ] **Runbook + on-call.** Deploy, rollback, restore, rotate secrets, incident
+  checklist, who is paged.
+
+## Decisions the team needs to make
+
+1. SSO provider (GitHub OAuth vs generic OIDC) and whether passwords stay.
+2. Whether to rewrite git history or rotate-and-move-on.
+3. Backup destination (S3-compatible, another host, or the deSEC box).
+4. Payments provider and whether it is in scope for the event.
+5. Whether the SQLite single-node design is enough, or Postgres is expected.

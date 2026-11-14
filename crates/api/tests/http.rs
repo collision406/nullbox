@@ -9,16 +9,20 @@ use nullbox_api::{AppState, Config, db, http};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-async fn app() -> Router {
+async fn app_with_admin_token(admin_token: &str) -> Router {
     let pool = db::connect_in_memory().await.expect("in-memory db");
     let config = Config {
         bind_addr: "127.0.0.1:0".parse().unwrap(),
         database_url: "sqlite::memory:".into(),
         cors_allowed_origins: vec!["http://localhost:5173".into()],
         public_web_url: "http://localhost:5173".into(),
-        admin_token: "test-admin-token".into(),
+        admin_token: admin_token.into(),
     };
     http::router(AppState::new(pool, config))
+}
+
+async fn app() -> Router {
+    app_with_admin_token("test-admin-token").await
 }
 
 /// Send a request; returns status and JSON body (`Null` if empty).
@@ -155,4 +159,13 @@ async fn admin_export_needs_the_admin_token() {
     let (status, tickets) = send(&app, "GET", "/api/admin/export", &admin, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tickets[0]["customer_email"], "a@example.com");
+}
+
+#[tokio::test]
+async fn admin_export_is_disabled_without_a_configured_token() {
+    let app = app_with_admin_token("").await;
+
+    // An empty header must not match an empty setting.
+    let (status, error) = send(&app, "GET", "/api/admin/export", &[("x-admin-token", "")], None).await;
+    assert_eq!((status, &error["code"]), (StatusCode::FORBIDDEN, &json!("forbidden")));
 }
