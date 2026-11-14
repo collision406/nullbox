@@ -11,7 +11,7 @@ const en = {
   app: {
     name: "Nullbox",
     subtitle: "Support, but make it void.",
-    nav: { submit: "Report a problem", inbox: "Worker inbox" },
+    nav: { submit: "Report a problem", inbox: "Worker inbox", observability: "Observability" },
     language: "Language",
     footer: "No tickets were harmed in the making of this inbox.",
   },
@@ -193,6 +193,35 @@ const en = {
 
   time: {
     unknown: "—",
+  },
+
+  observability: {
+    title: "Observability & Void Telemetry",
+    subtitle: "Live HTTP traffic, error rates, database readiness, and alert routing.",
+    healthy: "Healthy",
+    degraded: "Degraded",
+    dbReady: "Database Ready (/api/readyz)",
+    dbDown: "Database Unreachable",
+    uptime: "Uptime",
+    dbSize: "SQLite DB Size",
+    processRss: "Process Memory (RSS)",
+    requests: "Total Requests",
+    errors4xx: "4xx Client Errors",
+    errors5xx: "5xx Server Errors",
+    latency: "Latency (Avg / P95)",
+    routesTitle: "HTTP Traffic & Errors by Route",
+    routeCol: "Route",
+    requestsCol: "Requests",
+    errorsCol: "Errors (4xx / 5xx)",
+    latencyCol: "Avg / P95 (ms)",
+    noRoutes: "No requests recorded yet.",
+    eventsTitle: "Domain Events & Audit Stream",
+    noEvents: "No domain events recorded yet.",
+    alertsTitle: "Uptime & Alert Router (/api/alerts)",
+    noAlerts: "No alerts fired. The void is calm.",
+    triggerTestAlert: "Fire synthetic test alert",
+    rawMetrics: "Prometheus /api/metrics",
+    rawReadyz: "Readiness /api/readyz",
   },
 };
 

@@ -31,6 +31,7 @@ export function AppShell() {
             {copy.app.nav.submit}
           </NavLink>
           <NavLink to="/inbox">{copy.app.nav.inbox}</NavLink>
+          <NavLink to="/observability">{copy.app.nav.observability}</NavLink>
         </nav>
         <div className={styles.tools}>
           {pathname.startsWith("/inbox") && <ActorPicker />}

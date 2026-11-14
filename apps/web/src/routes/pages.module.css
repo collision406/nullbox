@@ -252,3 +252,60 @@
   background: var(--color-accent);
   color: #fff;
 }
+
+/* observability dashboard */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+.metricCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.metricLabel {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+.metricValue {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.table th {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+.pillOk {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+.pillWarn {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}

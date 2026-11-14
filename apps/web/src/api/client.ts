@@ -6,12 +6,15 @@
  * - Auth headers are added in `authHeaders()`: that's where a bearer token goes later.
  */
 import { getActorName } from "./actor";
+import type { AlertRecord } from "./generated/AlertRecord";
 import type { BacklogStats } from "./generated/BacklogStats";
+import type { CreateAlertRequest } from "./generated/CreateAlertRequest";
 import type { CreateTicketRequest } from "./generated/CreateTicketRequest";
 import type { CreateTicketResponse } from "./generated/CreateTicketResponse";
 import type { ErrorBody } from "./generated/ErrorBody";
 import type { ErrorCode } from "./generated/ErrorCode";
 import type { Message } from "./generated/Message";
+import type { ObservabilitySummary } from "./generated/ObservabilitySummary";
 import type { Ticket } from "./generated/Ticket";
 import type { TicketStatus } from "./generated/TicketStatus";
 import type { TicketThread } from "./generated/TicketThread";
@@ -98,4 +101,9 @@ export const api = {
   yeetTicket: (id: string) =>
     request<Ticket>("POST", `/tickets/${id}/yeet`, { headers: authHeaders() }),
   backlogStats: () => request<BacklogStats>("GET", "/stats/backlog", { headers: authHeaders() }),
+
+  // observability
+  observabilitySummary: () => request<ObservabilitySummary>("GET", "/observability/summary"),
+  triggerAlert: (body: CreateAlertRequest) =>
+    request<AlertRecord>("POST", "/alerts/webhook", { body }),
 };

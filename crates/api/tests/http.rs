@@ -169,3 +169,114 @@ async fn admin_export_is_disabled_without_a_configured_token() {
     let (status, error) = send(&app, "GET", "/api/admin/export", &[("x-admin-token", "")], None).await;
     assert_eq!((status, &error["code"]), (StatusCode::FORBIDDEN, &json!("forbidden")));
 }
+
+#[tokio::test]
+async fn request_id_is_propagated_and_generated() {
+    let app = app().await;
+
+    // Preserves incoming X-Request-Id from Caddy / caller.
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/healthz")
+        .header("x-request-id", "caddy-req-12345")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get("x-request-id").unwrap(), "caddy-req-12345");
+
+    // Generates a UUIDv7 X-Request-Id when omitted.
+    let req = Request::builder().method("GET").uri("/api/healthz").body(Body::empty()).unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    let generated = res.headers().get("x-request-id").unwrap().to_str().unwrap();
+    assert!(!generated.is_empty());
+}
+
+#[tokio::test]
+async fn stopped_database_flips_readiness_without_killing_liveness() {
+    let pool = db::connect_in_memory().await.expect("in-memory db");
+    let config = Config {
+        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        database_url: "sqlite::memory:".into(),
+        cors_allowed_origins: vec!["http://localhost:5173".into()],
+        public_web_url: "http://localhost:5173".into(),
+        admin_token: "test-admin-token".into(),
+    };
+    let app = http::router(AppState::new(pool.clone(), config));
+
+    let (status, ready) = send(&app, "GET", "/api/readyz", &[], None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ready["status"], "ok");
+    assert_eq!(ready["db"], "ok");
+
+    // Stop the database pool: readiness must flip to 503 while liveness stays 200.
+    pool.close().await;
+
+    let (ready_status, ready_err) = send(&app, "GET", "/api/readyz", &[], None).await;
+    assert_eq!((ready_status, &ready_err["code"]), (StatusCode::SERVICE_UNAVAILABLE, &json!("service_unavailable")));
+
+    let (live_status, live_body) = send(&app, "GET", "/api/healthz", &[], None).await;
+    assert_eq!((live_status, &live_body["status"]), (StatusCode::OK, &json!("ok")));
+
+    // Readiness failure also records an alert on the alert route.
+    let (alert_status, alerts) = send(&app, "GET", "/api/alerts", &[], None).await;
+    assert_eq!(alert_status, StatusCode::OK);
+    assert!(alerts.as_array().unwrap().iter().any(|a| a["source"] == "readyz"));
+}
+
+#[tokio::test]
+async fn metrics_and_observability_summary_track_traffic_errors_and_alerts() {
+    let app = app().await;
+
+    // Generate traffic: create a ticket (201) and hit teapot (418).
+    send(
+        &app,
+        "POST",
+        "/api/tickets",
+        &[],
+        Some(json!({ "subject": "Metrics test", "body": "Body", "severity": "p2" })),
+    )
+    .await;
+    send(&app, "GET", "/api/teapot", &[], None).await;
+
+    // Trigger an external uptime alert via the webhook route.
+    let (alert_status, alert) = send(
+        &app,
+        "POST",
+        "/api/alerts/webhook",
+        &[],
+        Some(json!({
+            "title": "Synthetic probe warning",
+            "message": "High latency from Tokyo probe",
+            "severity": "warning",
+            "source": "uptime-check"
+        })),
+    )
+    .await;
+    assert_eq!(alert_status, StatusCode::CREATED);
+    assert_eq!(alert["source"], "uptime-check");
+
+    // Check structured JSON summary for the dashboard.
+    let (status, summary) = send(&app, "GET", "/api/observability/summary", &[], None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(summary["db_ready"], true);
+    assert!(summary["db_size_bytes"].as_u64().unwrap() > 0);
+    assert!(summary["process_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(summary["total_requests"].as_u64().unwrap() >= 3);
+    assert!(summary["total_errors_4xx"].as_u64().unwrap() >= 1);
+    assert_eq!(summary["domain_events"]["ticket_created"], 1);
+    assert!(!summary["recent_events"].as_array().unwrap().is_empty());
+    assert!(!summary["recent_alerts"].as_array().unwrap().is_empty());
+
+    // Check Prometheus text exposition at /api/metrics.
+    let req = Request::builder().method("GET").uri("/api/metrics").body(Body::empty()).unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let text = String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+    assert!(text.contains("nullbox_http_requests_total"));
+    assert!(text.contains("nullbox_http_errors_total"));
+    assert!(text.contains("nullbox_http_request_duration_seconds_bucket"));
+    assert!(text.contains("nullbox_db_size_bytes"));
+    assert!(text.contains("nullbox_process_resident_memory_bytes"));
+    assert!(text.contains("nullbox_domain_events_total{kind=\"ticket_created\"} 1"));
+}

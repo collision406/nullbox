@@ -6,12 +6,20 @@ pub mod extract;
 mod utility;
 mod worker;
 
+use std::time::Instant;
+
 use axum::Router;
+use axum::extract::{MatchedPath, Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, header};
+use axum::middleware::{Next, from_fn_with_state};
+use axum::response::Response;
 use axum::routing::{get, post};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
+use tracing::Instrument;
+use uuid::Uuid;
 
+use crate::observability::{REQUEST_ID_HEADER, RequestId};
 use crate::{AppState, Config};
 use extract::{ACTOR_HEADER, TICKET_TOKEN_HEADER};
 
@@ -28,12 +36,16 @@ pub fn router(state: AppState) -> Router {
         .route("/stats/backlog", get(worker::backlog_stats))
         // admin
         .route("/admin/export", get(admin::export))
-        // utility
+        // observability & utility
         .route("/healthz", get(utility::healthz))
+        .route("/readyz", get(utility::readyz))
+        .route("/metrics", get(utility::metrics))
+        .route("/observability/summary", get(utility::observability_summary))
+        .route("/alerts", get(utility::list_alerts).post(utility::trigger_alert))
+        .route("/alerts/webhook", post(utility::trigger_alert))
         .route("/teapot", get(utility::teapot));
 
-    let config = state.config.clone();
-    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &config).with_state(state)
+    middleware(Router::new().nest("/api", api).fallback(utility::not_found), &state).with_state(state)
 }
 
 /// The one place for cross-cutting layers. Tracing exporters, rate limiting,
@@ -41,8 +53,66 @@ pub fn router(state: AppState) -> Router {
 ///
 /// Routes outside `/api` (an MCP server at `/mcp`, say) go next to the `nest` in
 /// `router`, so they pass through here too.
-pub fn middleware<S: Clone + Send + Sync + 'static>(router: Router<S>, config: &Config) -> Router<S> {
-    router.layer(cors(config)).layer(TraceLayer::new_for_http())
+pub fn middleware(router: Router<AppState>, state: &AppState) -> Router<AppState> {
+    router
+        .layer(from_fn_with_state(state.clone(), observability_layer))
+        .layer(cors(&state.config))
+        .layer(TraceLayer::new_for_http())
+}
+
+/// Propagates or generates `x-request-id`, records RED metrics, and emits a
+/// structured JSON request log entry with `request_id` and `latency_ms`.
+async fn observability_layer(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
+    let request_id = req
+        .headers()
+        .get(REQUEST_ID_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && v.len() <= 128)
+        .map(str::to_owned)
+        .unwrap_or_else(|| Uuid::now_v7().to_string());
+
+    let method = req.method().as_str().to_owned();
+    let path = req.uri().path().to_owned();
+    let route = req.extensions().get::<MatchedPath>().map(|m| m.as_str().to_owned()).unwrap_or_else(|| path.clone());
+
+    req.extensions_mut().insert(RequestId(request_id.clone()));
+    if let Ok(val) = HeaderValue::from_str(&request_id) {
+        req.headers_mut().insert(HeaderName::from_static(REQUEST_ID_HEADER), val);
+    }
+
+    state.observability.inc_in_flight();
+    let start = Instant::now();
+    let span = tracing::info_span!(
+        "http_request",
+        request_id = %request_id,
+        method = %method,
+        route = %route,
+    );
+    let mut response = next.run(req).instrument(span).await;
+    let duration = start.elapsed();
+    state.observability.dec_in_flight();
+
+    let status = response.status().as_u16();
+    let latency_ms = (duration.as_secs_f64() * 1000.0 * 100.0).round() / 100.0;
+    state.observability.record_http(&method, &route, status, duration, &request_id);
+
+    if let Ok(val) = HeaderValue::from_str(&request_id) {
+        response.headers_mut().insert(HeaderName::from_static(REQUEST_ID_HEADER), val);
+    }
+
+    tracing::info!(
+        target: "nullbox::http",
+        request_id = %request_id,
+        method = %method,
+        path = %path,
+        route = %route,
+        status = status,
+        latency_ms = latency_ms,
+        "request completed"
+    );
+
+    response
 }
 
 /// CORS for the web app on another origin (Vite in dev, Tauri). `Authorization` is
@@ -69,5 +139,7 @@ fn cors(config: &Config) -> CorsLayer {
             header::AUTHORIZATION,
             HeaderName::from_static(ACTOR_HEADER),
             HeaderName::from_static(TICKET_TOKEN_HEADER),
+            HeaderName::from_static(REQUEST_ID_HEADER),
         ])
+        .expose_headers([HeaderName::from_static(REQUEST_ID_HEADER)])
 }
