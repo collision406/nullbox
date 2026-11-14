@@ -11,8 +11,9 @@ Everything is same-origin, so the browser needs no CORS and no second hostname.
 
 ## Deployment model: `main` only
 
-- **`main` is the deployment branch.** The checkout at `/srv/nullbox` tracks
-  `main` and nothing else.
+- **`main` is the deployment branch.** The checkout at `/srv/nullbox` is on a
+  local `main` that tracks `origin/main`, and nothing else. The deploy command
+  enforces this; `git branch` there should show `* main`.
 - **The server is a deployment target, not a workspace.** No feature work, no
   hand edits, no debugging by changing files there. Development happens in
   branches and `development`; only merged `main` reaches the server.
