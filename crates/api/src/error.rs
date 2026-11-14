@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 use ts_rs::TS;
@@ -22,6 +22,8 @@ pub enum ErrorCode {
     ServiceUnavailable,
     Internal,
     ImATeapot,
+    RateLimited,
+    PayloadTooLarge,
 }
 
 /// The one error shape: `{ code, message }`. `message` is English and for developers only.
@@ -56,6 +58,13 @@ pub enum ApiError {
     WorksOnMyMachine(String),
     #[error("I'm a teapot")]
     Teapot,
+    #[error("too many requests, retry in {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
+    #[error("request body too large")]
+    PayloadTooLarge,
+    /// The request ran longer than `REQUEST_TIMEOUT_SECS`.
+    #[error("request timed out")]
+    Timeout,
 }
 
 impl ApiError {
@@ -71,6 +80,9 @@ impl ApiError {
             Self::ProbablyDns(_) => ErrorCode::ServiceUnavailable,
             Self::WorksOnMyMachine(_) => ErrorCode::Internal,
             Self::Teapot => ErrorCode::ImATeapot,
+            Self::RateLimited { .. } => ErrorCode::RateLimited,
+            Self::PayloadTooLarge => ErrorCode::PayloadTooLarge,
+            Self::Timeout => ErrorCode::ServiceUnavailable,
         }
     }
 
@@ -84,6 +96,9 @@ impl ApiError {
             Self::ProbablyDns(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::WorksOnMyMachine(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Teapot => StatusCode::IM_A_TEAPOT,
+            Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
+            Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Timeout => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 }
@@ -98,7 +113,15 @@ impl IntoResponse for ApiError {
             }
             other => other.to_string(),
         };
-        (self.status(), Json(ErrorBody { code: self.code(), message })).into_response()
+        let retry_after = match &self {
+            Self::RateLimited { retry_after_secs } => Some(*retry_after_secs),
+            _ => None,
+        };
+        let mut response = (self.status(), Json(ErrorBody { code: self.code(), message })).into_response();
+        if let Some(secs) = retry_after {
+            response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from(secs));
+        }
+        response
     }
 }
 
@@ -115,6 +138,10 @@ impl From<RepoError> for ApiError {
 
 impl From<JsonRejection> for ApiError {
     fn from(rejection: JsonRejection) -> Self {
+        // Bodies over the limit set in `http::router` are cut off before they are parsed.
+        if rejection.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            return Self::PayloadTooLarge;
+        }
         Self::Validation(rejection.body_text())
     }
 }

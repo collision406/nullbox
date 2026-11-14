@@ -63,6 +63,7 @@ impl TicketService {
         self.events.emit(DomainEvent::TicketCreated {
             ticket_id: ticket.id,
             number: ticket.number,
+            subject: ticket.subject.clone(),
             severity: ticket.severity,
         });
         Ok(CreatedTicket { ticket, access_token })
@@ -175,9 +176,15 @@ impl TicketService {
     }
 
     /// The secret token is the customer's login: without a valid one, every ticket looks missing.
+    ///
+    /// A token only opens the ticket it was issued for. Somebody else's ticket answers
+    /// exactly like a missing one, so a valid token can't be used to probe for other IDs.
     async fn ticket_for_customer(&self, id: Uuid, access_token: &str) -> Result<Ticket, ApiError> {
-        self.repo.get_ticket_by_token(&token::hash(access_token)).await?.ok_or(ApiError::NotFound)?;
-        self.ticket(id).await
+        let ticket = self.repo.get_ticket_by_token(&token::hash(access_token)).await?.ok_or(ApiError::NotFound)?;
+        if ticket.id != id {
+            return Err(ApiError::NotFound);
+        }
+        Ok(ticket)
     }
 
     /// Save the ticket with its new messages, then emit events (only once the write succeeded).

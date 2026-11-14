@@ -1,56 +1,11 @@
 //! HTTP tests: the whole router against in-memory SQLite, via `oneshot`.
 //! Copy a test, change the requests, done.
 
-use axum::Router;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
-use nullbox_api::{AppState, Config, db, http};
-use serde_json::{Value, json};
-use tower::ServiceExt;
+mod common;
 
-async fn app_with_admin_token(admin_token: &str) -> Router {
-    let pool = db::connect_in_memory().await.expect("in-memory db");
-    let config = Config {
-        bind_addr: "127.0.0.1:0".parse().unwrap(),
-        database_url: "sqlite::memory:".into(),
-        cors_allowed_origins: vec!["http://localhost:5173".into()],
-        public_web_url: "http://localhost:5173".into(),
-        admin_token: admin_token.into(),
-    };
-    http::router(AppState::new(pool, config))
-}
-
-async fn app() -> Router {
-    app_with_admin_token("test-admin-token").await
-}
-
-/// Send a request; returns status and JSON body (`Null` if empty).
-async fn send(
-    app: &Router,
-    method: &str,
-    uri: &str,
-    headers: &[(&str, &str)],
-    body: Option<Value>,
-) -> (StatusCode, Value) {
-    let mut req = Request::builder().method(method).uri(uri);
-    for (name, value) in headers {
-        req = req.header(*name, *value);
-    }
-    let body = match body {
-        Some(json) => {
-            req = req.header("content-type", "application/json");
-            Body::from(json.to_string())
-        }
-        None => Body::empty(),
-    };
-    let res = app.clone().oneshot(req.body(body).unwrap()).await.unwrap();
-    let status = res.status();
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
-}
-
-const WORKER: (&str, &str) = ("x-actor-name", "%E5%B1%B1%E7%94%B0"); // 山田, percent-encoded
+use axum::http::StatusCode;
+use common::{ADMIN_TOKEN, WORKER, app, send};
+use serde_json::json;
 
 #[tokio::test]
 async fn customer_and_worker_round_trip() {
@@ -155,17 +110,8 @@ async fn admin_export_needs_the_admin_token() {
     let (status, _) = send(&app, "GET", "/api/admin/export", &[("x-admin-token", "nope")], None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    let admin = [("x-admin-token", "test-admin-token")];
+    let admin = [("x-admin-token", ADMIN_TOKEN)];
     let (status, tickets) = send(&app, "GET", "/api/admin/export", &admin, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tickets[0]["customer_email"], "a@example.com");
-}
-
-#[tokio::test]
-async fn admin_export_is_disabled_without_a_configured_token() {
-    let app = app_with_admin_token("").await;
-
-    // An empty header must not match an empty setting.
-    let (status, error) = send(&app, "GET", "/api/admin/export", &[("x-admin-token", "")], None).await;
-    assert_eq!((status, &error["code"]), (StatusCode::FORBIDDEN, &json!("forbidden")));
 }

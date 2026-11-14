@@ -13,13 +13,17 @@ async fn main() -> anyhow::Result<()> {
     }));
 
     let config = Config::from_env().context("reading config")?;
+    if config.admin_token.is_none() {
+        tracing::warn!("ADMIN_TOKEN is not set: /api/admin/* refuses every request");
+    }
     let pool = db::connect(&config.database_url).await.context("opening the database")?;
     let bind_addr = config.bind_addr;
     let app = http::router(AppState::new(pool, config));
 
     let listener = tokio::net::TcpListener::bind(bind_addr).await.with_context(|| format!("binding {bind_addr}"))?;
     tracing::info!(%bind_addr, "Nullbox is listening. The void awaits.");
-    axum::serve(listener, app)
+    // The peer address is what the rate limiter and the audit log key on.
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .with_graceful_shutdown(async {
             tokio::signal::ctrl_c().await.ok();
             tracing::info!("shutting down, tickets will have to wait");

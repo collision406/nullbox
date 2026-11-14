@@ -24,6 +24,8 @@ pub enum DomainEvent {
     TicketCreated {
         ticket_id: Uuid,
         number: i64,
+        /// Kept so an audit trail can say which ticket this was without a lookup.
+        subject: String,
         severity: Severity,
     },
     StatusChanged {

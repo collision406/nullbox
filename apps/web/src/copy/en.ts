@@ -161,6 +161,8 @@ const en = {
     service_unavailable: "The server is taking a nap. Try again in a moment.",
     internal: "Something broke on our side. It works on our machine, though.",
     im_a_teapot: "I'm a teapot. Short and stout.",
+    rate_limited: "Whoa there, speedracer. Take a breath and try again in a moment.",
+    payload_too_large: "That's a lot of words. Trim it down and try again.",
     network_error: "Can't reach the server. Is it plugged in?",
   } satisfies Record<ErrorCode | "network_error", string>,
 
