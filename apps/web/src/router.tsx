@@ -8,6 +8,7 @@ import { NotFoundPage } from "./routes/NotFoundPage";
 import { SsoDonePage } from "./routes/SsoDonePage";
 import { ThanksPage } from "./routes/ThanksPage";
 import { InboxPage } from "./routes/worker/InboxPage";
+import { ObservabilityPage } from "./routes/worker/ObservabilityPage";
 import { WorkerTicketPage } from "./routes/worker/WorkerTicketPage";
 
 /**
@@ -31,6 +32,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "/inbox", element: <InboxPage /> },
           { path: "/inbox/:id", element: <WorkerTicketPage /> },
+          // ticket subjects and worker names: workers only, like the inbox
+          { path: "/observability", element: <ObservabilityPage /> },
         ],
       },
       { path: "*", element: <NotFoundPage /> },

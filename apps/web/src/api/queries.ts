@@ -1,12 +1,14 @@
 /** TanStack Query hooks on top of the API client. */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import type { CreateAlertRequest } from "./generated/CreateAlertRequest";
 import type { TicketStatus } from "./generated/TicketStatus";
 import type { UpdateTicketRequest } from "./generated/UpdateTicketRequest";
 import type { WorkerMessageRequest } from "./generated/WorkerMessageRequest";
 
 export const keys = {
   backlog: ["backlog"] as const,
+  observability: ["observability"] as const,
   inbox: (status?: TicketStatus) => ["tickets", "list", status ?? "active"] as const,
   ticket: (id: string) => ["tickets", "detail", id] as const,
   customerTicket: (id: string) => ["public-ticket", id] as const,
@@ -14,6 +16,14 @@ export const keys = {
 
 export function useBacklogStats() {
   return useQuery({ queryKey: keys.backlog, queryFn: api.backlogStats, refetchInterval: 15_000 });
+}
+
+export function useObservabilitySummary() {
+  return useQuery({
+    queryKey: keys.observability,
+    queryFn: api.observabilitySummary,
+    refetchInterval: 5_000,
+  });
 }
 
 export function useInbox(status?: TicketStatus) {
@@ -80,4 +90,12 @@ export function useUpdateTicket(id: string) {
 export function useYeetTicket() {
   const invalidate = useInvalidateTickets();
   return useMutation({ mutationFn: api.yeetTicket, onSuccess: invalidate });
+}
+
+export function useTriggerAlert() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAlertRequest) => api.triggerAlert(body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.observability }),
+  });
 }

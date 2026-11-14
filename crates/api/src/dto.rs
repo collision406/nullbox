@@ -1,5 +1,6 @@
 //! Request/response bodies. Exported to TypeScript by `cargo test`.
 
+use chrono::{DateTime, Utc};
 use nullbox_domain::{BeastMood, Message, Severity, Ticket, TicketStatus};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -138,4 +139,98 @@ pub struct BacklogStats {
     pub beast_mood: BeastMood,
     #[ts(type = "number | null")]
     pub oldest_open_age_secs: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[ts(export)]
+pub struct DomainEventCounts {
+    #[ts(type = "number")]
+    pub ticket_created: u64,
+    #[ts(type = "number")]
+    pub status_changed: u64,
+    #[ts(type = "number")]
+    pub message_added: u64,
+    #[ts(type = "number")]
+    pub ticket_yeeted: u64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct RouteMetricsSummary {
+    pub method: String,
+    pub route: String,
+    #[ts(type = "number")]
+    pub requests: u64,
+    #[ts(type = "number")]
+    pub errors_4xx: u64,
+    #[ts(type = "number")]
+    pub errors_5xx: u64,
+    pub avg_latency_ms: f64,
+    pub p95_latency_ms: f64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AuditEventRecord {
+    pub id: String,
+    pub kind: String,
+    pub ticket_id: Option<String>,
+    pub actor: Option<String>,
+    pub summary: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AlertRecord {
+    pub id: String,
+    pub severity: String,
+    pub source: String,
+    pub title: String,
+    pub message: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct CreateAlertRequest {
+    pub title: String,
+    pub message: String,
+    #[serde(default)]
+    #[ts(optional)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ObservabilitySummary {
+    pub status: String,
+    #[ts(type = "number")]
+    pub uptime_secs: u64,
+    #[ts(type = "number")]
+    pub in_flight_requests: u64,
+    pub db_ready: bool,
+    #[ts(type = "number | null")]
+    pub db_latency_us: Option<u64>,
+    #[ts(type = "number")]
+    pub db_size_bytes: u64,
+    #[ts(type = "number")]
+    pub process_rss_bytes: u64,
+    #[ts(type = "number")]
+    pub process_open_fds: u64,
+    #[ts(type = "number")]
+    pub total_requests: u64,
+    #[ts(type = "number")]
+    pub total_errors_4xx: u64,
+    #[ts(type = "number")]
+    pub total_errors_5xx: u64,
+    pub avg_latency_ms: f64,
+    pub p95_latency_ms: f64,
+    pub routes: Vec<RouteMetricsSummary>,
+    pub domain_events: DomainEventCounts,
+    pub recent_events: Vec<AuditEventRecord>,
+    pub recent_alerts: Vec<AlertRecord>,
 }

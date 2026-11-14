@@ -6,16 +6,19 @@
  * - Worker requests carry `Authorization: Bearer <session token>` from `authHeaders()`.
  *   A 401 on such a request clears the session, so the UI falls back to the login screen.
  */
+import type { AlertRecord } from "./generated/AlertRecord";
 import type { AuthConfig } from "./generated/AuthConfig";
 import type { AuthResponse } from "./generated/AuthResponse";
 import type { BacklogStats } from "./generated/BacklogStats";
 import type { CheckoutResponse } from "./generated/CheckoutResponse";
+import type { CreateAlertRequest } from "./generated/CreateAlertRequest";
 import type { CreateTicketRequest } from "./generated/CreateTicketRequest";
 import type { CreateTicketResponse } from "./generated/CreateTicketResponse";
 import type { ErrorBody } from "./generated/ErrorBody";
 import type { ErrorCode } from "./generated/ErrorCode";
 import type { Me } from "./generated/Me";
 import type { Message } from "./generated/Message";
+import type { ObservabilitySummary } from "./generated/ObservabilitySummary";
 import type { Ticket } from "./generated/Ticket";
 import type { TicketStatus } from "./generated/TicketStatus";
 import type { TicketThread } from "./generated/TicketThread";
@@ -123,4 +126,10 @@ export const api = {
   yeetTicket: (id: string) =>
     request<Ticket>("POST", `/tickets/${id}/yeet`, { headers: authHeaders() }),
   backlogStats: () => request<BacklogStats>("GET", "/stats/backlog", { headers: authHeaders() }),
+
+  // observability
+  observabilitySummary: () =>
+    request<ObservabilitySummary>("GET", "/observability/summary", { headers: authHeaders() }),
+  triggerAlert: (body: CreateAlertRequest) =>
+    request<AlertRecord>("POST", "/alerts/webhook", { body, headers: authHeaders() }),
 };
