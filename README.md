@@ -159,6 +159,37 @@ Workers sign up and log in with a username and a password; every reply carries t
 
 Tests: `crates/api/tests/auth.rs` and `crates/api/src/accounts.rs`.
 
+### Single sign-on
+
+Workers can also sign in with GitHub or Google instead of a password: set `SSO_PROVIDER` (`github` or
+`google`), `SSO_CLIENT_ID` and `SSO_CLIENT_SECRET` (all three or none) and the login screen shows a
+"Sign in with …" button. Register the application with the provider using this callback address:
+
+```
+{PUBLIC_WEB_URL}/api/auth/sso/callback
+```
+
+OAuth 2 authorization code flow with PKCE, built by hand in `crates/api/src/sso.rs`:
+
+- `GET /api/auth/sso/login` stores a random `state` and PKCE verifier (state hashed, valid 10 minutes,
+  **used once**) and sends the browser to the provider. The verifier and the client secret never go
+  through the browser.
+- A cookie (`nullbox_sso`: HttpOnly, Secure, SameSite=Lax, only sent to `/api/auth/sso`) ties the
+  sign-in to the browser that started it. A callback link made by an attacker and opened in a victim's
+  browser has no matching cookie and is refused before anything is exchanged (login CSRF).
+- `GET /api/auth/sso/callback` trades the code for an access token, asks the provider who the person
+  is, and finds or creates the account for that (provider, user id): never for a name or an email, and
+  never merged with a password account of the same name. The names shown come from the provider with
+  control and direction-changing characters removed.
+- The session token reaches the browser in the URL **fragment** (`/sso/done#token=…`), which is never
+  sent to a server, so it appears in no log. Logging out ends the session like any other.
+- SSO accounts have no password; sign-ins and refusals are audited (`sso_login_started`,
+  `sso_login_succeeded`, `sso_login_failed`) and share the log-in rate limit.
+
+Tests: `crates/api/tests/sso.rs`, against a fake provider that checks the client secret, the redirect
+address and the PKCE verifier. The `code` is in the callback's query string, so it can appear in access
+logs; it is single use and worthless without the verifier.
+
 Web, at build time: `VITE_API_BASE_URL`, the origin of the API without `/api`. Unset, the bundle calls
 `http://localhost:3000`, which is only right on your laptop. For a deployment, set it to your site's
 address, or to an empty value when one web server serves both the web app and `/api`.
